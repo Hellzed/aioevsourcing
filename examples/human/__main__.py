@@ -1,5 +1,5 @@
 from abc import ABC
-from asyncio import get_event_loop, sleep
+from asyncio import get_event_loop, sleep, gather
 
 # pylint: disable=wrong-import-order
 from dataclasses import dataclass
@@ -60,19 +60,10 @@ class Born(HumanEvent):
             )
         )
 
-
-@dataclass(frozen=True)
-class Birth(HumanCommand):
-    name: str
-
-    async def _run(self, _) -> Event:
-        print(
-            "Giving birth to a new human. His name will be {}!".format(
-                self.name
-            )
-        )
-        await sleep(1)
-        return Born(name=self.name)
+async def birth(_, name) -> Event:
+    print("Giving birth to a new human. His name will be {}!".format(name))
+    await sleep(1)
+    return Born(name=name)
 
 
 @dataclass(frozen=True)
@@ -134,7 +125,7 @@ class DummyEventStore(EventStore):
 
 async def twins():
     h1 = Human()
-    await h1.run(Birth(name="Otto"))
+    await h1.execute(birth, "Otto")
     print(h1)
 
     # await bus.publish("stuff", Birth(name="ME", global_id="X3"))

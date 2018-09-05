@@ -6,20 +6,8 @@ from abc import ABC, abstractmethod
 from typing import Awaitable, List
 from uuid import uuid4
 
-from .commands import Command, ConcurrentCommandsError
+from .commands import ConcurrentCommandsError, MustReturnEventError
 from .events import Event, EventBus, EventStream, EventStore
-
-
-class CommandNotSupportedError(TypeError):
-    """Raise this error when a callable doesn't support given Command type
-    """
-
-    def __init__(self, aggregate, command) -> None:
-        super().__init__(
-            "{} doesn't support command {}. Supported types are {}".format(
-                aggregate, command, aggregate.command_types
-            )
-        )
 
 
 class EventNotSupportedError(TypeError):
@@ -40,14 +28,12 @@ class Aggregate(ABC):
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        for attr in "command_types", "event_types":
-            value = getattr(cls, attr)
-            if not isinstance(value, tuple):
-                raise TypeError(
-                    "{}: '{}' must be a tuple of types, not {}.".format(
-                        cls, attr, type(value)
-                    )
+        if not isinstance(cls.event_types, tuple):
+            raise TypeError(
+                "{}: 'event_types' must be a tuple of types, not {}.".format(
+                    cls, type(cls.event_types)
                 )
+            )
 
     def __init__(self, event_stream: EventStream = None) -> None:
         if event_stream is not None:
@@ -59,6 +45,7 @@ class Aggregate(ABC):
             self.global_id = str(uuid4())
 
         self._command_running = False
+        self._saved = True
         self._changes: List[Event] = []
 
     def __enter__(self):
@@ -73,12 +60,9 @@ class Aggregate(ABC):
         self.unlock()
         return True
 
-    @property
-    @abstractmethod
-    def command_types(self):
-        """Supported Command types
-        """
-        pass
+    def __del__(self):
+        if not self._saved:
+            print("Warning: aggregate not saved before going out of scope")
 
     @property
     @abstractmethod
@@ -99,6 +83,9 @@ class Aggregate(ABC):
         """
         return self._changes
 
+    def mark_saved(self):
+        self._saved = True
+
     def apply(self, event: Event) -> None:
         """Call the Event's apply method to mutate the aggregate.
         """
@@ -106,12 +93,23 @@ class Aggregate(ABC):
             raise EventNotSupportedError
         event.apply(self)
 
-    async def run(self, command: Command) -> None:
+    async def execute(self, command, *args, unsafe=False, **kwargs) -> None:
         """Call the Command, which will mutate the aggregate.
         """
-        if not isinstance(command, self.command_types):
-            raise CommandNotSupportedError
-        await command(self)
+        try:
+            if not unsafe:
+                self.lock()
+            event = await command(self, *args, **kwargs)
+            if not isinstance(event, Event):
+                raise MustReturnEventError
+            self.apply(event)
+            self.changes.append(event)
+            self._saved = False
+        except RuntimeError:
+            print("bad stuff happened during command")
+            raise
+        finally:
+            self.unlock()
 
     def lock(self):
         """Lock the aggregate to ensure only one command is running at a time.
@@ -157,3 +155,4 @@ class AggregateRepository(ABC):
                     "Cannot publish saved events to bus %r. No such method!",
                     self.event_bus,
                 )
+        aggregate.mark_saved()
