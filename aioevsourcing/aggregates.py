@@ -93,12 +93,10 @@ class Aggregate(ABC):
             raise EventNotSupportedError
         event.apply(self)
 
-    async def execute(self, command, *args, unsafe=False, **kwargs) -> None:
+    async def _execute(self, command, *args, **kwargs) -> None:
         """Call the Command, which will mutate the aggregate.
         """
         try:
-            if not unsafe:
-                self.lock()
             event = await command(self, *args, **kwargs)
             if not isinstance(event, Event):
                 raise MustReturnEventError
@@ -108,8 +106,13 @@ class Aggregate(ABC):
         except RuntimeError:
             print("bad stuff happened during command")
             raise
-        finally:
-            self.unlock()
+
+    async def execute(self, command, *args, **kwargs) -> None:
+        with self:
+            await self._execute(command, *args, **kwargs)
+
+    async def execute_unsafe(self, command, *args, **kwargs) -> None:
+        await self._execute(command, *args, **kwargs)
 
     def lock(self):
         """Lock the aggregate to ensure only one command is running at a time.
