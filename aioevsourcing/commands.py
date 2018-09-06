@@ -60,12 +60,10 @@ class ConcurrentCommandsError(RuntimeError):
     """Raise if attempting to run multiple "safe" commands at the same time.
     """
 
-    def __init__(self, command) -> None:
+    def __init__(self) -> None:
         super().__init__(
-            "Command '{}.{}' did not return an Event. "
-            "Commands must return Events.".format(
-                command.__module__, command.__name__
-            )
+            "Do not attempt to run multiple commands concurrently "
+            "on the same aggregate."
         )
 
 
