@@ -41,6 +41,7 @@ class Event(ABC):
     ... class MyEvent(Event):
     ...     example_prop: str = "example value"
     """
+
     topic = None
 
     @abstractmethod
@@ -66,6 +67,7 @@ class EventStream:
         version (int): An version number. Defaults to 0.
         events (List[Event]): A list of Events. Default to an empty list.
     """
+
     version: int = 0
     events: List[Event] = field(default_factory=list)
 
@@ -76,6 +78,7 @@ class EventRegistry(Dict[str, Type[Event]]):
 
     Behaves as a normal dict, but useful for clarity and static type checking.
     """
+
     pass
 
 
@@ -88,6 +91,7 @@ class SelfRegisteringEvent(Event, ABC):
         registry (EventRegistry): An event registry. Defaults to an empty event
             registry.
     """
+
     registry = EventRegistry()
 
     def __init_subclass__(cls, **kwargs):
@@ -125,6 +129,7 @@ class EventBus(AsyncIterator, ABC):
     >>> event_bus = MyEventBus(EventRegistry({"topic": MyEvent}))
     >>> listen_task = loop.create_task(event_bus.listen())
     """
+
     def __init__(
         self, registry: EventRegistry = None, queue: Queue = Queue()
     ) -> None:
@@ -205,6 +210,7 @@ class JsonEventBus(EventBus):
     Args:
         json: A JSON serializer.
     """
+
     def __init__(self, serializer=json, **kwargs):
         super().__init__(**kwargs)
         self.json = serializer
@@ -248,12 +254,14 @@ class ConcurrentStreamWriteError(RuntimeError):
     expected version doesn't match (a more recent version of the stream already
     exists in the store).
     """
+
     pass
 
 
 class EventStore(ABC):
     """Event store abstract base class. Subclass to create your own event store.
     """
+
     @abstractmethod
     async def load_stream(self, global_id) -> EventStream:
         """Load an event stream by aggregate ID from the store.
