@@ -36,7 +36,6 @@ class HumanEvent(SelfRegisteringEvent, ABC):
 
 @dataclass(init=False)
 class Human(Aggregate):
-    command_types = (HumanCommand,)
     event_types = (HumanEvent,)
 
     global_id: str
