@@ -1,10 +1,10 @@
 import json
 
 from abc import ABC, abstractmethod
-from asyncio import CancelledError, Queue
+from asyncio import CancelledError, gather, Queue
 from collections.abc import AsyncIterator
 from inspect import isabstract
-from typing import Dict, List, Optional, Type
+from typing import Callable, Dict, List, Optional, Type
 from dataclasses import asdict, dataclass, field
 
 
@@ -44,10 +44,17 @@ class EventBus(AsyncIterator, ABC):
     ) -> None:
         self._queue = queue
         self._registry = registry
+        self._subscriptions: Dict[str, List[Callable]] = {}
 
     async def __anext__(self):
         message = await self._queue.get()
         return self._decode(message)
+
+    def subscribe(self, reactor, topic):
+        try:
+            self._subscriptions[topic].append(reactor)
+        except KeyError:
+            self._subscriptions[topic] = [reactor]
 
     async def publish(self, aggregate_id, event):
         message = self._encode(aggregate_id, event)
@@ -56,8 +63,15 @@ class EventBus(AsyncIterator, ABC):
     async def listen(self):
         try:
             print("Listening...")
-            async for message in self:
-                print("Bus message:", message)
+            async for aggregate_id, event in self:
+                print("Bus message:", aggregate_id, event)
+                subscriptions = self._subscriptions.get(
+                    event.__class__.__name__, []
+                )
+                await gather(
+                    *[reactor(aggregate_id) for reactor in subscriptions]
+                )
+
         except CancelledError:
             print(
                 "Stop listening. {} messages remaining.".format(

@@ -60,6 +60,7 @@ class Born(HumanEvent):
             )
         )
 
+
 async def birth(_, name) -> Event:
     print("Giving birth to a new human. His name will be {}!".format(name))
     await sleep(1)
@@ -122,6 +123,9 @@ class DummyEventStore(EventStore):
                 raise ConcurrentStreamWriteError
             db[aggregate_id] = [*db[aggregate_id], *events]
 
+async def reactor0(_):
+    print("Hello reactor!")
+
 
 async def twins():
     h1 = Human()
@@ -136,6 +140,7 @@ async def twins():
 
     # print(db)
 
+
 async def close(_listen_task):
     await sleep(0.1)
     _listen_task.cancel()
@@ -145,6 +150,7 @@ async def close(_listen_task):
 if __name__ == "__main__":
     loop = get_event_loop()
     human_bus = JsonEventBus(registry=HumanEvent.registry)
+    human_bus.subscribe(reactor0, "Born")
     human_repo = HumanRepository(DummyEventStore(), event_bus=human_bus)
     listen_task = loop.create_task(human_bus.listen())
 
