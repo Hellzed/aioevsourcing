@@ -47,9 +47,10 @@ class Human(Aggregate):
 # pylint: disable=arguments-differ
 @dataclass(frozen=True)
 class Born(HumanEvent):
+    topic = "human.born"
+
     name: str
     status: Status = Status.ALIVE
-    topic = "Born"
 
     def apply(self, human: Human) -> None:
         human.name = self.name
@@ -144,7 +145,7 @@ if __name__ == "__main__":
     loop = get_event_loop()
 
     human_bus = JsonEventBus(registry=HumanEvent.registry)
-    human_bus.subscribe(reactor0, "")
+    human_bus.subscribe(reactor0, "human.born")
 
     human_repo = HumanRepository(DummyEventStore(), event_bus=human_bus)
     listen_task = loop.create_task(human_bus.listen())

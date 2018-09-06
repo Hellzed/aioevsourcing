@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 
 from .events import Event
 
-
+#  Probably not going to use a separate command class in the end
 class Command(ABC):
     valid: bool = True
 

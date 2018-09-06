@@ -59,7 +59,7 @@ class Event(ABC):
 
 @dataclass
 class EventStream:
-    """An event stream is a versioned (oredered) list of events.
+    """An event stream is a versioned (ordered) list of events.
 
     It is used to save and replay, or otherwise transport events.
 
@@ -165,9 +165,7 @@ class EventBus(AsyncIterator, ABC):
             print("Listening...")
             async for aggregate_id, event in self:
                 print("Bus message:", aggregate_id, event)
-                subscriptions = self._subscriptions.get(
-                    event.__class__.__name__, []
-                )
+                subscriptions = self._subscriptions.get(event.topic, [])
                 await gather(
                     *[reactor(aggregate_id) for reactor in subscriptions]
                 )
