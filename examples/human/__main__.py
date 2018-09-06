@@ -1,5 +1,5 @@
 from abc import ABC
-from asyncio import get_event_loop, sleep, gather
+from asyncio import get_event_loop, sleep
 
 # pylint: disable=wrong-import-order
 from dataclasses import dataclass
@@ -50,6 +50,7 @@ class Human(Aggregate):
 class Born(HumanEvent):
     name: str
     status: Status = Status.ALIVE
+    topic = "Born"
 
     def apply(self, human: Human) -> None:
         human.name = self.name
@@ -123,23 +124,6 @@ class DummyEventStore(EventStore):
                 raise ConcurrentStreamWriteError
             db[aggregate_id] = [*db[aggregate_id], *events]
 
-async def reactor0(_):
-    print("Hello reactor!")
-
-
-async def twins():
-    h1 = Human()
-    await h1.execute(birth, "Otto")
-    print(h1)
-
-    # await bus.publish("stuff", Birth(name="ME", global_id="X3"))
-    # print(h1)
-    # await human_repo.save(h2)
-    print(">saving human and publishing events")
-    await human_repo.save(h1)
-
-    # print(db)
-
 
 async def close(_listen_task):
     await sleep(0.1)
@@ -147,10 +131,22 @@ async def close(_listen_task):
     await _listen_task
 
 
+async def reactor0(_):
+    print("Hello reactor!")
+
+
+async def twins():
+    h1 = Human()
+    await h1.execute(birth, "Otto")
+    await human_repo.save(h1)
+
+
 if __name__ == "__main__":
     loop = get_event_loop()
+
     human_bus = JsonEventBus(registry=HumanEvent.registry)
-    human_bus.subscribe(reactor0, "Born")
+    human_bus.subscribe(reactor0, "")
+
     human_repo = HumanRepository(DummyEventStore(), event_bus=human_bus)
     listen_task = loop.create_task(human_bus.listen())
 

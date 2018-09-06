@@ -9,17 +9,7 @@ from uuid import uuid4
 from .commands import ConcurrentCommandsError, MustReturnEventError
 from .events import Event, EventBus, EventStream, EventStore
 
-
-class EventNotSupportedError(TypeError):
-    """Raise this error when a callable doesn't support given Event type
-    """
-
-    def __init__(self, aggregate, event) -> None:
-        super().__init__(
-            "{} doesn't support event {}. Supported types are {}".format(
-                aggregate, event, aggregate.event_types
-            )
-        )
+logger = logging.getLogger(__name__)
 
 
 class Aggregate(ABC):
@@ -30,18 +20,19 @@ class Aggregate(ABC):
         super().__init_subclass__(**kwargs)
         if not isinstance(cls.event_types, tuple):
             raise TypeError(
-                "{}: 'event_types' must be a tuple of types, not {}.".format(
+                "{}: 'event_types' must be a tuple of types, not '{}'.".format(
                     cls, type(cls.event_types)
                 )
             )
 
-    def __init__(self, event_stream: EventStream = None) -> None:
-        if event_stream is not None:
-            self._version = event_stream.version
-            for event in event_stream.events:
-                self.apply(event)
-        else:
-            self._version = 0
+    def __init__(self, event_stream: EventStream = EventStream()) -> None:
+        self.global_id = None
+
+        self._version = event_stream.version
+        for event in event_stream.events:
+            self.apply(event)
+
+        if self.global_id is None:
             self.global_id = str(uuid4())
 
         self._command_running = False
@@ -53,7 +44,7 @@ class Aggregate(ABC):
             self.lock()
             return self
         except ConcurrentCommandsError:
-            logging.error("Do not try to run commands concurrently")
+            logger.error("Do not try to run commands concurrently")
             raise
 
     def __exit__(self, *args):
@@ -62,7 +53,9 @@ class Aggregate(ABC):
 
     def __del__(self):
         if not self._saved:
-            print("Warning: aggregate not saved before going out of scope")
+            logger.warning(
+                "Aggregate '%r' not saved before going out of scope", self
+            )
 
     @property
     @abstractmethod
@@ -83,14 +76,11 @@ class Aggregate(ABC):
         """
         return self._changes
 
-    def mark_saved(self):
-        self._saved = True
-
     def apply(self, event: Event) -> None:
         """Call the Event's apply method to mutate the aggregate.
         """
         if not isinstance(event, self.event_types):
-            raise EventNotSupportedError
+            raise EventNotSupportedError(self, event)
         event.apply(self)
 
     async def _execute(self, command, *args, **kwargs) -> None:
@@ -99,12 +89,23 @@ class Aggregate(ABC):
         try:
             event = await command(self, *args, **kwargs)
             if not isinstance(event, Event):
-                raise MustReturnEventError
+                raise MustReturnEventError(command)
             self.apply(event)
             self.changes.append(event)
             self._saved = False
-        except RuntimeError:
-            print("bad stuff happened during command")
+        except MustReturnEventError as cmd_error:
+            logger.error(
+                "%s: %s Aggregate left unchanged.",
+                type(self).__name__,
+                str(cmd_error),
+            )
+        except RuntimeError as cmd_error:
+            logger.error(
+                "%s: Command '%s.%s' failed. Aggregate left unchanged.",
+                type(self).__name__,
+                command.__module__,
+                command.__name__,
+            )
             raise
 
     async def execute(self, command, *args, **kwargs) -> None:
@@ -125,6 +126,21 @@ class Aggregate(ABC):
         """Unlock the aggregate.
         """
         self._command_running = False
+
+    def mark_saved(self):
+        self._saved = True
+
+
+class EventNotSupportedError(TypeError):
+    """Raise this error when a callable doesn't support given Event type
+    """
+
+    def __init__(self, aggregate: Aggregate, event: Event) -> None:
+        super().__init__(
+            "{} doesn't support event {}. Supported types are {}".format(
+                aggregate, event, aggregate.event_types
+            )
+        )
 
 
 class AggregateRepository(ABC):
@@ -155,7 +171,8 @@ class AggregateRepository(ABC):
                     await self.event_bus.publish(aggregate.global_id, event)
             except AttributeError:
                 logging.error(
-                    "Cannot publish saved events to bus %r. No such method!",
+                    "Cannot publish aggregate %s saved events to bus %r. No such method!",
+                    aggregate,
                     self.event_bus,
                 )
         aggregate.mark_saved()

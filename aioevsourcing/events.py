@@ -1,4 +1,5 @@
 import json
+import logging
 
 from abc import ABC, abstractmethod
 from asyncio import CancelledError, gather, Queue
@@ -6,6 +7,8 @@ from collections.abc import AsyncIterator
 from inspect import isabstract
 from typing import Callable, Dict, List, Optional, Type
 from dataclasses import asdict, dataclass, field
+
+logger = logging.getLogger(__name__)
 
 
 class Event(ABC):
@@ -16,7 +19,7 @@ class Event(ABC):
 
 @dataclass
 class EventStream:
-    version: int
+    version: int = 0
     events: List[Event] = field(default_factory=list)
 
 
@@ -26,16 +29,22 @@ class EventRegistry(Dict[str, Type[Event]]):
 
 class SelfRegisteringEvent(Event, ABC):
     registry = EventRegistry()
+    topic = None
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         if not isabstract(cls):
             # pylint: disable=unsupported-assignment-operation
-            cls.registry[cls.__name__] = cls
-
-
-class ConcurrentStreamWriteError(RuntimeError):
-    pass
+            if not cls.topic:
+                logger.warning("No topic set for event %r", cls)
+            elif not isinstance(cls.topic, str):
+                raise TypeError(
+                    "{}: 'topic' must be a 'str', not '{}'.".format(
+                        cls, type(cls.topic).__name__
+                    )
+                )
+            else:
+                cls.registry[cls.topic] = cls
 
 
 class EventBus(AsyncIterator, ABC):
@@ -110,6 +119,10 @@ class JsonEventBus(EventBus):
             data["aggregate_id"],
             self._registry[data["event"]["type"]](**data["event"]["data"]),
         )
+
+
+class ConcurrentStreamWriteError(RuntimeError):
+    pass
 
 
 class EventStore(ABC):

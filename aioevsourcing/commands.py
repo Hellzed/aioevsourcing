@@ -57,7 +57,16 @@ class CommandRuntimeError(RuntimeError):
 
 
 class ConcurrentCommandsError(RuntimeError):
-    pass
+    """Raise if attempting to run multiple "safe" commands at the same time.
+    """
+
+    def __init__(self, command) -> None:
+        super().__init__(
+            "Command '{}.{}' did not return an Event. "
+            "Commands must return Events.".format(
+                command.__module__, command.__name__
+            )
+        )
 
 
 class InvalidArgumentsError(RuntimeError):
@@ -69,4 +78,13 @@ class InvalidStateError(RuntimeError):
 
 
 class MustReturnEventError(TypeError):
-    pass
+    """Raise this error when a command fails to return an Event.
+    """
+
+    def __init__(self, command) -> None:
+        super().__init__(
+            "Command '{}.{}' did not return an Event. "
+            "Commands must return Events.".format(
+                command.__module__, command.__name__
+            )
+        )
