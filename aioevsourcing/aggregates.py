@@ -23,6 +23,8 @@ class Aggregate(ABC):
     As this is an event sourcing application, the object is build by replaying
     the chain of events leading to current state.
 
+    For convenience, use as a dataclass without init.
+
     Args:
         event_stream (EventStream): An event stream to replay.
 
@@ -36,6 +38,12 @@ class Aggregate(ABC):
             the current version of the aggregate. Starts empty after init.
         global_id (str): All aggregates must specify a global ID.
             It is required for storage and event publishing.
+
+    Examples:
+    >>> from dataclasses import dataclass
+    >>> @dataclass(init=False)
+    ... class MyAggregate(Event):
+    ...     event_types = (Event,)
     """
 
     def __init_subclass__(cls, **kwargs):
@@ -105,6 +113,7 @@ class Aggregate(ABC):
 
         Args:
             event (Event): The event to apply.
+
         Raises:
             EventNotSupportedError: The event is not in the allowed event_types,
             or a subclass of one of the allowed event_types.
@@ -124,6 +133,7 @@ class Aggregate(ABC):
         Args:
             command: A command to execute. *args and **kwargs are passed to this
                 command.
+
         Raises:
             RuntimeError: Any error that happens inside the command.
                 Raising these errors enables custom error handling in the
@@ -228,7 +238,6 @@ class AggregateRepository(ABC):
         event_bus (EventBus): Where events are published once stored.
         event_store (EventStore): Where events are stored.
 
-
     Attributes:
         aggregate (Type[Aggregate]): The type of the aggregates to save/load
             to/from this repository.
@@ -252,6 +261,7 @@ class AggregateRepository(ABC):
 
         Args:
             global_id (str): The ID of the aggregate to load.
+
         Returns:
             Aggregate
         """
