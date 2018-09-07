@@ -24,6 +24,7 @@ from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 from typing import Callable, Dict, List, Optional, Type
 
+
 LOGGER = logging.getLogger(__name__)
 
 

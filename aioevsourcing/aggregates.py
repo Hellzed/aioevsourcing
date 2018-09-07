@@ -156,6 +156,8 @@ class Aggregate(ABC):
         scope without being marked as saved first.
         """
         self._saved = True
+        self._version += len(self._changes)
+        self._changes = []
 
 
 class EventNotSupportedError(TypeError):
