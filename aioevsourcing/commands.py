@@ -15,6 +15,7 @@ class Command(ABC):
     def __call__(self, *args, **kwargs):
         pass
 
+
 class CommandRuntimetError(RuntimeError):
     """Raise this error when a command's internal code fails.
     """
