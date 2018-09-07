@@ -6,11 +6,12 @@ saving/loading aggregates.
 import logging
 
 from abc import ABC, abstractmethod
+from contextlib import asynccontextmanager
 
 # pylint: disable=wrong-import-order
 # dataclasses is a standard module in Python 3.7
 from dataclasses import dataclass, field
-from typing import Awaitable, List
+from typing import Any, Awaitable, List
 
 from aioevsourcing import aggregates
 
@@ -67,6 +68,7 @@ class AggregateRepository(ABC):
         Returns:
             Aggregate
         """
+        # handle the AggregateNotFoundError case
         event_stream = await self.event_store.load_stream(global_id)
         return self.aggregate(event_stream)
 
@@ -91,10 +93,32 @@ class AggregateRepository(ABC):
                     await self.event_bus.publish(aggregate.global_id, event)
             except AttributeError:
                 LOGGER.error(
-                    "Cannot publish aggregate %s saved events to bus %r. "
+                    "Cannot 'publish' aggregate %s saved events to bus %r. "
                     "No such method!",
                     aggregate,
                     self.event_bus,
                 )
         if mark_saved:
             aggregate.mark_saved()
+
+
+@asynccontextmanager
+async def execute_transaction(repository: Any, global_id: str = None):
+    try:
+        aggregate = None
+        if global_id is not None:
+            aggregate = await repository.load(global_id)
+        else:
+            aggregate = repository.aggregate()
+        yield aggregate
+        if aggregate is not None:
+            await repository.save(aggregate)
+    except AttributeError:
+        LOGGER.error(
+            "Repository '%r' must implement have an 'aggregate' attribute and "
+            "define 'load' and 'save' methods. A repository type may be "
+            "obtained by subclassing "
+            "'aioeventsourcing.repositories.AggregateRepository'.",
+            repository,
+        )
+        raise

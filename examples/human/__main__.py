@@ -1,3 +1,4 @@
+import uuid
 from abc import ABC
 from asyncio import get_event_loop, sleep
 
@@ -7,7 +8,11 @@ from enum import Enum
 from typing import List, Optional
 
 from aioevsourcing.aggregates import Aggregate
-from aioevsourcing.repositories import AggregateRepository, EventStream
+from aioevsourcing.repositories import (
+    AggregateRepository,
+    EventStream,
+    execute_transaction,
+)
 from aioevsourcing.events import (
     Event,
     JsonEventBus,
@@ -45,21 +50,18 @@ class Born(HumanEvent):
     topic = "human.born"
 
     name: str
+    global_id: str
     status: Status = Status.ALIVE
 
     def apply_to(self, human: Human) -> None:
         human.name = self.name
+        human.global_id = self.global_id
         human.status = self.status
-        print(
-            "{} is now {}. Hello {}, welcome into this world!".format(
-                human.name, human.status.value, human.name
-            )
-        )
 
 
 def birth(_, name) -> Event:
-    # print("Giving birth to a new human. His name will be {}!".format(name))
-    return Born(name=name)
+    print("Giving birth to a new human. His name will be {}!".format(name))
+    return Born(name=name, global_id=str(uuid.uuid4()))
 
 
 @dataclass(frozen=True)
@@ -129,12 +131,17 @@ async def reactor0(_):
     print("Hello reactor!")
 
 
-async def twins():
-    h1 = Human()
-    await sleep(1)
-    h1.execute(birth, "Otto")
-    await human_repo.save(h1)
+async def business():
+    human_one_id = None
 
+    async with execute_transaction(human_repo) as h1:
+        await sleep(1)
+        h1.execute(birth, "Otto")
+        human_one_id = h1.global_id
+
+    async with execute_transaction(human_repo, human_one_id) as h1_again:
+        await sleep(1)
+        print("Retrieved name:", h1_again.name)
 
 if __name__ == "__main__":
     loop = get_event_loop()
@@ -145,5 +152,5 @@ if __name__ == "__main__":
     human_repo = HumanRepository(DummyEventStore(), event_bus=human_bus)
     listen_task = loop.create_task(human_bus.listen())
 
-    loop.run_until_complete(twins())
+    loop.run_until_complete(business())
     loop.run_until_complete(close(listen_task))
