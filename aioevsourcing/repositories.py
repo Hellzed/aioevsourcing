@@ -82,6 +82,13 @@ class AggregateRepository(ABC):
         Args:
             aggregate (Aggregate): The ID of the aggregate to save.
         """
+        if not aggregate.changes:
+            LOGGER.info(
+                "Nothing to save in repository '%s' for aggregate '%r'",
+                type(self),
+                aggregate,
+            )
+            return
         await self.event_store.append_to_stream(
             aggregate.global_id,
             aggregate.changes,
@@ -104,8 +111,12 @@ class AggregateRepository(ABC):
 
 @asynccontextmanager
 async def execute_transaction(repository: Any, global_id: str = None):
+    """An asynchronous context manager to use a repository.
+
+    Takes a repository, yields an aggregate.
+    If no aggregate ID is provided, it will create a new one
+    """
     try:
-        aggregate = None
         if global_id is not None:
             aggregate = await repository.load(global_id)
         else:
@@ -122,3 +133,5 @@ async def execute_transaction(repository: Any, global_id: str = None):
             repository,
         )
         raise
+    finally:
+        del aggregate

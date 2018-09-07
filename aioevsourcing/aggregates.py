@@ -45,6 +45,8 @@ class Aggregate(ABC):
     ...     event_types = (Callable,)
     """
 
+    global_id: str
+
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
         if not isinstance(cls.event_types, tuple):

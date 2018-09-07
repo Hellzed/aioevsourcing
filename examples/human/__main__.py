@@ -139,9 +139,11 @@ async def business():
         h1.execute(birth, "Otto")
         human_one_id = h1.global_id
 
+    print(h1)
     async with execute_transaction(human_repo, human_one_id) as h1_again:
         await sleep(1)
         print("Retrieved name:", h1_again.name)
+    print(h1_again)
 
 if __name__ == "__main__":
     loop = get_event_loop()

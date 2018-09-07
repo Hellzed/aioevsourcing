@@ -22,7 +22,7 @@ from abc import ABC, abstractmethod
 # pylint: disable=wrong-import-order
 # dataclasses is a standard module in Python 3.7
 from dataclasses import asdict
-from typing import Callable, Dict, List, Optional, Type
+from typing import Any, Callable, Dict, List, Optional, Type
 
 from aioevsourcing import aggregates
 
@@ -134,6 +134,12 @@ class EventBus(collections.abc.AsyncIterator, ABC):
         return self._decode(message)
 
     def subscribe(self, reactor, topic):
+        """Subscribe a reactor to a topic
+
+        Args:
+            reactor: A reactor
+            topic (str): A topic.
+        """
         try:
             self._subscriptions[topic].append(reactor)
         except KeyError:
@@ -169,7 +175,7 @@ class EventBus(collections.abc.AsyncIterator, ABC):
             )
 
     @abstractmethod
-    def _encode(self, aggregate_id, event):
+    def _encode(self, aggregate_id: str, event: object) -> Any:
         """Encode an aggregate ID and an event into a message.
 
         The message format must be supported by the bus queue.
@@ -183,7 +189,7 @@ class EventBus(collections.abc.AsyncIterator, ABC):
         pass
 
     @abstractmethod
-    def _decode(self, message):
+    def _decode(self, message: Any) -> tuple:
         """Decode a queue message into a tuple of (aggregate ID, event).
 
         Args:
