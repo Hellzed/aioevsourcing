@@ -11,15 +11,18 @@ Self registering events may be useful when using an event registry.
 When implementing an event store, the concurrent write error is used to
 customise write behaviour.
 """
+import asyncio
+import collections
+import inspect
 import json
 import logging
 
 from abc import ABC, abstractmethod
-from asyncio import CancelledError, gather, Queue
-from collections.abc import AsyncIterator
-from inspect import isabstract
-from typing import Callable, Dict, List, Optional, Type
+
+# pylint: disable=wrong-import-order
+# dataclasses is a standard module in Python 3.7
 from dataclasses import asdict, dataclass, field
+from typing import Callable, Dict, List, Optional, Type
 
 LOGGER = logging.getLogger(__name__)
 
@@ -96,7 +99,7 @@ class SelfRegisteringEvent(Event, ABC):
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        if not isabstract(cls):
+        if not inspect.isabstract(cls):
             # pylint: disable=unsupported-assignment-operation
             if not cls.topic:
                 LOGGER.warning("No topic set for event %r", cls)
@@ -110,7 +113,7 @@ class SelfRegisteringEvent(Event, ABC):
                 cls.registry[cls.topic] = cls
 
 
-class EventBus(AsyncIterator, ABC):
+class EventBus(collections.abc.AsyncIterator, ABC):
     """Event bus abstract base class.
 
     Subclass to create your own event bus.
@@ -121,7 +124,7 @@ class EventBus(AsyncIterator, ABC):
     Args:
         registry (EventRegistry): The event registry from which to lookup the
             event types supported by the bus.
-        queue (Queue): The queue to put events in, and to get them from.
+        queue (asyncio.Queue): The queue to put events in, and to get them from.
 
     Examples:
     >>> class MyEventBus(EventBus):
@@ -131,7 +134,9 @@ class EventBus(AsyncIterator, ABC):
     """
 
     def __init__(
-        self, registry: EventRegistry = None, queue: Queue = Queue()
+        self,
+        registry: EventRegistry = None,
+        queue: asyncio.Queue = asyncio.Queue(),
     ) -> None:
         self._queue = queue
         self._registry = registry
@@ -166,11 +171,11 @@ class EventBus(AsyncIterator, ABC):
             async for aggregate_id, event in self:
                 print("Bus message:", aggregate_id, event)
                 subscriptions = self._subscriptions.get(event.topic, [])
-                await gather(
+                await asyncio.gather(
                     *[reactor(aggregate_id) for reactor in subscriptions]
                 )
 
-        except CancelledError:
+        except asyncio.CancelledError:
             print(
                 "Stop listening. {} messages remaining.".format(
                     self._queue.qsize()
@@ -225,10 +230,7 @@ class JsonEventBus(EventBus):
         return self.json.dumps(
             {
                 "aggregate_id": aggregate_id,
-                "event": {
-                    "type": event.__class__.__name__,
-                    "data": asdict(event),
-                },
+                "event": {"topic": event.topic, "data": asdict(event)},
             }
         )
 
@@ -243,7 +245,7 @@ class JsonEventBus(EventBus):
         data = self.json.loads(message)
         return (
             data["aggregate_id"],
-            self._registry[data["event"]["type"]](**data["event"]["data"]),
+            self._registry[data["event"]["topic"]](**data["event"]["data"]),
         )
 
 

@@ -4,13 +4,12 @@ Provides a base aggregate class for an event sourcing application,
 as well as a base repository class to handle saving/loading aggregates.
 """
 import logging
+import uuid
 
 from abc import ABC, abstractmethod
 from typing import Awaitable, List
-from uuid import uuid4
 
-from .commands import ConcurrentCommandsError, MustReturnEventError
-from .events import Event, EventBus, EventStream, EventStore
+from aioevsourcing import commands, events
 
 LOGGER = logging.getLogger(__name__)
 
@@ -26,24 +25,25 @@ class Aggregate(ABC):
     For convenience, use as a dataclass without init.
 
     Args:
-        event_stream (EventStream): An event stream to replay.
+        event_stream (events.EventStream): An event stream to replay.
 
     Attributes:
-        event_types (Tuple[Type[Event], ...]): A list of event types supported
-            by the aggregate.
+        event_types (Tuple[Type[events.Event], ...]): A list of event types
+            supported by the aggregate.
         version (int): The current version number of the agregate.
             This value is obtained from the event stream used to build
             the aggregate and doesn't change afterwards.
-        changes (List[Event]): A list of events used to keep track of changes to
-            the current version of the aggregate. Starts empty after init.
+        changes (List[events.Event]): A list of events used to keep track of
+            changes to the current version of the aggregate. Starts empty after
+            init.
         global_id (str): All aggregates must specify a global ID.
             It is required for storage and event publishing.
 
     Examples:
     >>> from dataclasses import dataclass
     >>> @dataclass(init=False)
-    ... class MyAggregate(Event):
-    ...     event_types = (Event,)
+    ... class MyAggregate(Aggregate):
+    ...     event_types = (events.Event,)
     """
 
     def __init_subclass__(cls, **kwargs):
@@ -55,30 +55,18 @@ class Aggregate(ABC):
                 )
             )
 
-    def __init__(self, event_stream: EventStream = EventStream()) -> None:
-        self.global_id = None
-
+    def __init__(
+        self, event_stream: events.EventStream = events.EventStream()
+    ) -> None:
         self._version = event_stream.version
         for event in event_stream.events:
             self.apply(event)
 
-        if self.global_id is None:
-            self.global_id = str(uuid4())
+        if self._version == 0:
+            self.global_id = str(uuid.uuid4())
 
-        self._command_running = False
         self._saved = True
-        self._changes: List[Event] = []
-
-    def __enter__(self):
-        try:
-            self.lock()
-            return self
-        except ConcurrentCommandsError:
-            LOGGER.error("Do not try to run commands concurrently")
-
-    def __exit__(self, *args):
-        self.unlock()
-        return True
+        self._changes: List[events.Event] = []
 
     def __del__(self):
         if not self._saved:
@@ -105,14 +93,14 @@ class Aggregate(ABC):
         """
         return self._changes
 
-    def apply(self, event: Event) -> None:
+    def apply(self, event: events.Event) -> None:
         """Mutate the aggregate by applying an event.
 
         To enhance modularity, the event has to define it's own apply method to
         ensure its ability apply itself to the calling aggregate.
 
         Args:
-            event (Event): The event to apply.
+            event (events.Event): The event to apply.
 
         Raises:
             EventNotSupportedError: The event is not in the allowed event_types,
@@ -122,10 +110,10 @@ class Aggregate(ABC):
             raise EventNotSupportedError(self, event)
         event.apply(self)
 
-    async def _execute(self, command, *args, **kwargs) -> None:
-        """Asynchronously call a command to mutate the aggregate.
+    def execute(self, command, *args, **kwargs) -> None:
+        """Call a command to mutate the aggregate.
 
-        Internally the command has to issue an event that will be passed to the
+        Internally the command must issue an event that will be passed to the
         aggregate's apply method.
         If the command doesn't return an event, or fails , the aggregate is not
         mutated.
@@ -140,13 +128,13 @@ class Aggregate(ABC):
                 transaction script currently managing the aggregate.
         """
         try:
-            event = await command(self, *args, **kwargs)
-            if not isinstance(event, Event):
-                raise MustReturnEventError(command)
+            event = command(self, *args, **kwargs)
+            if not isinstance(event, events.Event):
+                raise commands.MustReturnEventError(command)
             self.apply(event)
             self.changes.append(event)
             self._saved = False
-        except MustReturnEventError as cmd_error:
+        except commands.MustReturnEventError as cmd_error:
             LOGGER.error(
                 "%s: %s Aggregate left unchanged.",
                 type(self).__name__,
@@ -161,52 +149,6 @@ class Aggregate(ABC):
             )
             raise
 
-    async def execute(self, command, *args, **kwargs) -> None:
-        """Lock the aggregate and asynchronously call a command to mutate it.
-
-        This makes sure only a single "safe" command is running at a given time.
-        If the aggregate is locked, executing a "safe" command fails and an
-        error is logged.
-
-        Args:
-            command: A command to execute. *args and **kwargs are passed to this
-                command.
-        """
-        with self:
-            await self._execute(command, *args, **kwargs)
-
-    async def execute_unsafe(self, command, *args, **kwargs) -> None:
-        """Ignore lock, asynchronously call a command to mutate the aggregate.
-
-        Completely ignores the aggregate's current lock status.
-        If a command is running at the same time ("safe" or "unsafe"), this may
-        cause concurrency-related errors, as there is no way to predict in which
-        order events will be emitted and applied.
-
-        If consistency is manually enforced, both transitions between aggregate
-        states, event application and failure handling (for example: retrying)
-        must be checked.
-
-        "With great power comes great responsibility"
-
-        Args:
-            command: A command to execute. *args and **kwargs are passed to this
-                command.
-        """
-        await self._execute(command, *args, **kwargs)
-
-    def lock(self):
-        """Lock the aggregate to ensure only one safe command is run at a time.
-        """
-        if self._command_running:
-            raise ConcurrentCommandsError
-        self._command_running = True
-
-    def unlock(self):
-        """Unlock the aggregate.
-        """
-        self._command_running = False
-
     def mark_saved(self):
         """Mark the aggregate as "saved".
 
@@ -220,7 +162,7 @@ class EventNotSupportedError(TypeError):
     """Raise this error when a callable doesn't support given Event type
     """
 
-    def __init__(self, aggregate: Aggregate, event: Event) -> None:
+    def __init__(self, aggregate: Aggregate, event: events.Event) -> None:
         super().__init__(
             "{} doesn't support event {}. Supported types are {}".format(
                 aggregate, event, aggregate.event_types
@@ -235,8 +177,8 @@ class AggregateRepository(ABC):
     repository.
 
     Args:
-        event_bus (EventBus): Where events are published once stored.
-        event_store (EventStore): Where events are stored.
+        event_bus (events.EventBus): Where events are published once stored.
+        event_store (events.EventStore): Where events are stored.
 
     Attributes:
         aggregate (Type[Aggregate]): The type of the aggregates to save/load
@@ -244,7 +186,7 @@ class AggregateRepository(ABC):
     """
 
     def __init__(
-        self, event_store: EventStore, event_bus: EventBus = None
+        self, event_store: events.EventStore, event_bus: events.EventBus = None
     ) -> None:
         self.event_store = event_store
         self.event_bus = event_bus

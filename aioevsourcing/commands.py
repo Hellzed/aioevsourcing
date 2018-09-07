@@ -56,17 +56,6 @@ class CommandRuntimeError(RuntimeError):
     pass
 
 
-class ConcurrentCommandsError(RuntimeError):
-    """Raise if attempting to run multiple "safe" commands at the same time.
-    """
-
-    def __init__(self) -> None:
-        super().__init__(
-            "Do not attempt to run multiple commands concurrently "
-            "on the same aggregate."
-        )
-
-
 class InvalidArgumentsError(RuntimeError):
     pass
 

@@ -62,9 +62,8 @@ class Born(HumanEvent):
         )
 
 
-async def birth(_, name) -> Event:
-    print("Giving birth to a new human. His name will be {}!".format(name))
-    await sleep(1)
+def birth(_, name) -> Event:
+    # print("Giving birth to a new human. His name will be {}!".format(name))
     return Born(name=name)
 
 
@@ -137,7 +136,8 @@ async def reactor0(_):
 
 async def twins():
     h1 = Human()
-    await h1.execute(birth, "Otto")
+    await sleep(1)
+    h1.execute(birth, "Otto")
     await human_repo.save(h1)
 
 
@@ -146,7 +146,7 @@ if __name__ == "__main__":
 
     human_bus = JsonEventBus(registry=HumanEvent.registry)
     human_bus.subscribe(reactor0, "human.born")
-
+    # for stuff in config subscribe topic
     human_repo = HumanRepository(DummyEventStore(), event_bus=human_bus)
     listen_task = loop.create_task(human_bus.listen())
 
