@@ -4,7 +4,6 @@ Provides a base aggregate class for an event sourcing application,
 as well as a base repository class to handle saving/loading aggregates.
 """
 import logging
-import uuid
 
 from abc import ABC, abstractmethod
 from typing import Callable, List
@@ -65,8 +64,6 @@ class Aggregate(ABC):
                     self.apply(event)
             except AttributeError:
                 raise BadEventStreamError(event_stream)
-        else:
-            self.global_id = str(uuid.uuid4())
 
         self._saved = True
         self._changes: List = []
