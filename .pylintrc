@@ -141,12 +141,15 @@ disable=print-statement,
         exception-escape,
         comprehension-escape,
         # ===== NON-DEFAULT DISABLE =====
-        # With dataclasses, classes *are* meant to store data
+        # With dataclasses, classes *are* meant to store data.
         too-few-public-methods,
-        # Needed to support 2+ levels of abastract inheritance
+        # Needed to support 2+ levels of abastract inheritance.
         abstract-method,
-        # Code formatted with Black, disagree with pylint on formatting
-        bad-continuation
+        # Code formatted with Black, disagree with pylint on formatting.
+        bad-continuation,
+        # Pylint bug: an AsyncContextManager created with the decorator is not
+        # recognised as such.
+        not-async-context-manager
 
 # Enable the message, report, category or checker with the given id(s). You can
 # either give multiple identifier separated by comma (,) or put this option
