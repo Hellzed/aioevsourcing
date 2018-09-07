@@ -18,7 +18,7 @@ class Aggregate(ABC):
 
     Subclass to create your own aggregate.
 
-    As this is an event sourcing application, the object is build by replaying
+    As this is an event sourcing application, the object is built by replaying
     the chain of events leading to current state.
 
     For convenience, use as a dataclass without init.
