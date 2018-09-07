@@ -21,9 +21,10 @@ from abc import ABC, abstractmethod
 
 # pylint: disable=wrong-import-order
 # dataclasses is a standard module in Python 3.7
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict
 from typing import Callable, Dict, List, Optional, Type
 
+from aioevsourcing import aggregates
 
 LOGGER = logging.getLogger(__name__)
 
@@ -49,36 +50,21 @@ class Event(ABC):
     topic = None
 
     @abstractmethod
-    def apply(self, aggregate) -> None:
+    def apply_to(self, aggregate: aggregates.Aggregate) -> None:
         """Mutate an aggregate by applying the event.
 
         To enhance modularity, the aggregate calls this method through its own
         `apply` when passed a supported event.
 
         Args:
-            aggregate (Aggregate): The aggregate to which apply the event.
+            aggregate (aggregates.Aggregate): The aggregate to which apply the
+                event.
         """
         pass
 
 
-@dataclass
-class EventStream:
-    """An event stream is a versioned (ordered) list of events.
-
-    It is used to save and replay, or otherwise transport events.
-
-    Args:
-        version (int): An version number. Defaults to 0.
-        events (List[Event]): A list of Events. Default to an empty list.
-    """
-
-    version: int = 0
-    events: List[Event] = field(default_factory=list)
-
-
 class EventRegistry(Dict[str, Type[Event]]):
-    """An event registry, holding event types as values associated to string
-        keys.
+    """An event registry holding event types as values indexed by string keys.
 
     Behaves as a normal dict, but useful for clarity and static type checking.
     """
@@ -164,8 +150,7 @@ class EventBus(collections.abc.AsyncIterator, ABC):
         await self._queue.put(message)
 
     async def listen(self):
-        """Shorthand to listen for events in the bus and dispatch them to
-            reactors.
+        """Shorthand to listen to the bus for events, dispatch them to reactors.
         """
         try:
             print("Listening...")
@@ -185,8 +170,9 @@ class EventBus(collections.abc.AsyncIterator, ABC):
 
     @abstractmethod
     def _encode(self, aggregate_id, event):
-        """Encode an aggregate ID and an event into a message format supported
-            by the bus queue.
+        """Encode an aggregate ID and an event into a message.
+
+        The message format must be supported by the bus queue.
 
         Args:
             aggregate_id (str): An aggregate ID.
@@ -220,8 +206,7 @@ class JsonEventBus(EventBus):
         self.json = serializer
 
     def _encode(self, aggregate_id, event):
-        """Encode an aggregate ID and an event into a JSON message format for
-        the bus queue.
+        """Encode an aggregate ID and an event into a JSON message for the bus.
 
         Args:
             message (str): a message from the queue
@@ -264,7 +249,7 @@ class EventStore(ABC):
     """
 
     @abstractmethod
-    async def load_stream(self, global_id) -> EventStream:
+    async def load_stream(self, global_id):  # -> EventStream:
         """Load an event stream by aggregate ID from the store.
 
         Args:

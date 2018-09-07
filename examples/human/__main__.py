@@ -6,13 +6,12 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import List, Optional
 
-from aioevsourcing.aggregates import Aggregate, AggregateRepository
-from aioevsourcing.commands import Command
+from aioevsourcing.aggregates import Aggregate
+from aioevsourcing.repositories import AggregateRepository, EventStream
 from aioevsourcing.events import (
     Event,
     JsonEventBus,
     EventStore,
-    EventStream,
     ConcurrentStreamWriteError,
     SelfRegisteringEvent,
 )
@@ -24,10 +23,6 @@ class Status(str, Enum):
     UNKNOWN = "unknown"
     ALIVE = "alive"
     DEAD = "dead"
-
-
-class HumanCommand(Command, ABC):
-    pass
 
 
 class HumanEvent(SelfRegisteringEvent, ABC):
@@ -52,7 +47,7 @@ class Born(HumanEvent):
     name: str
     status: Status = Status.ALIVE
 
-    def apply(self, human: Human) -> None:
+    def apply_to(self, human: Human) -> None:
         human.name = self.name
         human.status = self.status
         print(
