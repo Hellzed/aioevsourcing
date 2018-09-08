@@ -10,7 +10,7 @@ from typing import Callable, List
 
 from aioevsourcing import commands
 
-LOGGER = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 class Aggregate(ABC):
@@ -72,7 +72,7 @@ class Aggregate(ABC):
 
     def __del__(self):
         if not self._saved:
-            LOGGER.warning(
+            logger.warning(
                 "Aggregate '%r' not saved before going out of scope", self
             )
 
@@ -113,7 +113,7 @@ class Aggregate(ABC):
         try:
             event.apply_to(self)
         except (AttributeError, NotImplementedError):
-            LOGGER.error("Event '%r' must implement an 'apply' method.", event)
+            logger.error("Event '%r' must implement an 'apply' method.", event)
 
     def execute(self, command, *args, **kwargs) -> None:
         """Call a command to mutate the aggregate.
@@ -143,13 +143,13 @@ class Aggregate(ABC):
             commands.MustReturnEventError,
             EventNotSupportedError,
         ) as cmd_error:
-            LOGGER.error(
+            logger.error(
                 "%s: %s Aggregate left unchanged.",
                 type(self).__name__,
                 str(cmd_error),
             )
         except Exception as cmd_error:
-            LOGGER.error(
+            logger.error(
                 "%s: Command '%s.%s' failed. Aggregate left unchanged.",
                 type(self).__name__,
                 command.__module__,

@@ -8,14 +8,13 @@ import logging
 from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
 
-# pylint: disable=wrong-import-order
-# dataclasses is a standard module in Python 3.7
-from dataclasses import dataclass, field
+# dataclasses is a standard module in Python 3.7. Pylint doesn't know this.
+from dataclasses import dataclass, field  # pylint: disable=wrong-import-order
 from typing import Any, Awaitable, List
 
 from aioevsourcing import aggregates
 
-LOGGER = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 @dataclass
@@ -44,8 +43,8 @@ class AggregateRepository(ABC):
         event_store (events.EventStore): Where events are stored.
 
     Attributes:
-        aggregate (Type[Aggregate]): The type of the aggregates to save/load
-            to/from this repository.
+        aggregate (Type[aggregates.Aggregate]): The type of the aggregates to
+            save/load to/from this repository.
     """
 
     def __init__(self, event_store, event_bus=None) -> None:
@@ -80,10 +79,10 @@ class AggregateRepository(ABC):
         Also marks the aggregate as saved by default.
 
         Args:
-            aggregate (Aggregate): The ID of the aggregate to save.
+            aggregate (aggregates.Aggregate): The ID of the aggregate to save.
         """
         if not aggregate.changes:
-            LOGGER.info(
+            logger.info(
                 "Nothing to save in repository '%s' for aggregate '%r'",
                 type(self),
                 aggregate,
@@ -99,7 +98,7 @@ class AggregateRepository(ABC):
                 for event in aggregate.changes:
                     await self.event_bus.publish(aggregate.global_id, event)
             except AttributeError:
-                LOGGER.error(
+                logger.error(
                     "Cannot 'publish' aggregate %s saved events to bus %r. "
                     "No such method!",
                     aggregate,
@@ -125,7 +124,7 @@ async def execute_transaction(repository: Any, global_id: str = None):
         if aggregate is not None:
             await repository.save(aggregate)
     except AttributeError:
-        LOGGER.error(
+        logger.error(
             "Repository '%r' must implement have an 'aggregate' attribute and "
             "define 'load' and 'save' methods. A repository type may be "
             "obtained by subclassing "

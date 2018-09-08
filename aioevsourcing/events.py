@@ -19,14 +19,13 @@ import logging
 
 from abc import ABC, abstractmethod
 
-# pylint: disable=wrong-import-order
-# dataclasses is a standard module in Python 3.7
-from dataclasses import asdict
+# dataclasses is a standard module in Python 3.7. Pylint doesn't know this.
+from dataclasses import asdict  # pylint: disable=wrong-import-order
 from typing import Any, Callable, Dict, List, Optional, Type
 
 from aioevsourcing import aggregates
 
-LOGGER = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
 class Event(ABC):
@@ -89,7 +88,7 @@ class SelfRegisteringEvent(Event, ABC):
         if not inspect.isabstract(cls):
             # pylint: disable=unsupported-assignment-operation
             if not cls.topic:
-                LOGGER.warning("No topic set for event %r", cls)
+                logger.warning("No topic set for event %r", cls)
             elif not isinstance(cls.topic, str):
                 raise TypeError(
                     "{}: 'topic' must be a 'str', not '{}'.".format(
