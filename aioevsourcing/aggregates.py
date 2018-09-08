@@ -6,9 +6,10 @@ as well as a base repository class to handle saving/loading aggregates.
 import logging
 
 from abc import ABC, abstractmethod
-from typing import Callable, List
+from contextlib import asynccontextmanager
+from typing import Any, Awaitable, List
 
-from aioevsourcing import commands
+from aioevsourcing import commands, events
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
@@ -42,7 +43,7 @@ class Aggregate(ABC):
     >>> from dataclasses import dataclass
     >>> @dataclass(init=False)
     ... class MyAggregate(Aggregate):
-    ...     event_types = (Callable,)
+    ...     event_types = (events.Event,)
     """
 
     global_id: str
@@ -56,16 +57,15 @@ class Aggregate(ABC):
                 )
             )
 
-    def __init__(self, event_stream=None) -> None:
-        self._version = 0
+    def __init__(
+        self, event_stream: events.EventStream = events.EventStream()
+    ) -> None:
+        if not isinstance(event_stream, events.EventStream):
+            raise BadEventStreamError(event_stream)
 
-        if event_stream is not None:
-            try:
-                self._version = event_stream.version
-                for event in event_stream.events:
-                    self.apply(event)
-            except AttributeError:
-                raise BadEventStreamError(event_stream)
+        self._version = event_stream.version
+        for event in event_stream.events:
+            self.apply(event)
 
         self._saved = True
         self._changes: List = []
@@ -95,7 +95,7 @@ class Aggregate(ABC):
         """
         return self._changes
 
-    def apply(self, event) -> None:
+    def apply(self, event: events.Event) -> None:
         """Mutate the aggregate by applying an event.
 
         To enhance modularity, the event has to define it's own apply method to
@@ -115,7 +115,7 @@ class Aggregate(ABC):
         except (AttributeError, NotImplementedError):
             logger.error("Event '%r' must implement an 'apply' method.", event)
 
-    def execute(self, command, *args, **kwargs) -> None:
+    def execute(self, command: commands.Command, *args, **kwargs) -> None:
         """Call a command to mutate the aggregate.
 
         Internally the command must issue an event that will be passed to the
@@ -134,10 +134,10 @@ class Aggregate(ABC):
         """
         try:
             event = command(self, *args, **kwargs)
-            if not hasattr(event, "apply_to"):
+            if not isinstance(event, events.Event):
                 raise commands.MustReturnEventError(command)
             self.apply(event)
-            self.changes.append(event)
+            self._changes.append(event)
             self._saved = False
         except (
             commands.MustReturnEventError,
@@ -172,10 +172,10 @@ class EventNotSupportedError(TypeError):
     """Raise this error when a callable doesn't support given event type
     """
 
-    def __init__(self, aggregate: Aggregate, event: Callable) -> None:
+    def __init__(self, aggregate: Aggregate, event: events.Event) -> None:
         super().__init__(
-            "{} doesn't support event {}. Supported types are {}".format(
-                aggregate, event, aggregate.event_types
+            "{} doesn't support event {}. Supported types are {}.".format(
+                type(aggregate), event, aggregate.event_types
             )
         )
 
@@ -186,9 +186,108 @@ class BadEventStreamError(AttributeError):
 
     def __init__(self, stream: object) -> None:
         super().__init__(
-            "{} lacks 'version' and/or 'event' attributes and can't be read by "
-            "the aggregate. A readable event stream type may be obtained by "
-            "subclassing 'aioeventsourcing.events.EventStream'.".format(
-                type(stream)
-            )
+            "Expected 'aioeventsourcing.events.EventStream' to initialise "
+            "aggregate, '{}' given.".format(type(stream))
         )
+
+
+class AggregateRepository(ABC):
+    """AggregateRepository abstract base class.
+
+    Subclass and add an `aggregate` class property to create your own
+    repository.
+
+    Args:
+        event_bus (events.EventBus): Where events are published once stored.
+        event_store (events.EventStore): Where events are stored.
+
+    Attributes:
+        aggregate (Type[aggregates.Aggregate]): The type of the aggregates to
+            save/load to/from this repository.
+    """
+
+    def __init__(self, event_store, event_bus=None) -> None:
+        self.event_store = event_store
+        self.event_bus = event_bus
+
+    @property
+    @abstractmethod
+    def aggregate(self):
+        """The aggregate type to load/save from this repository.
+        """
+        pass
+
+    async def load(self, global_id: str) -> Awaitable[Aggregate]:
+        """Load an aggregate by ID.
+
+        Args:
+            global_id (str): The ID of the aggregate to load.
+
+        Returns:
+            Aggregate
+        """
+        # handle the AggregateNotFoundError case
+        event_stream = await self.event_store.load_stream(global_id)
+        return self.aggregate(event_stream)
+
+    async def save(
+        self, aggregate: Aggregate, mark_saved: bool = True
+    ) -> None:
+        """Save an aggregate and publish changes to the event bus if present.
+
+        Also marks the aggregate as saved by default.
+
+        Args:
+            aggregate (aggregates.Aggregate): The ID of the aggregate to save.
+        """
+        if not aggregate.changes:
+            logger.info(
+                "Nothing to save in repository '%s' for aggregate '%r'",
+                type(self),
+                aggregate,
+            )
+            return
+        await self.event_store.append_to_stream(
+            aggregate.global_id,
+            aggregate.changes,
+            expect_version=aggregate.version,
+        )
+        if self.event_bus is not None:
+            try:
+                for event in aggregate.changes:
+                    await self.event_bus.publish(aggregate.global_id, event)
+            except AttributeError:
+                logger.error(
+                    "Cannot 'publish' aggregate %s saved events to bus %r. "
+                    "No such method!",
+                    aggregate,
+                    self.event_bus,
+                )
+        if mark_saved:
+            aggregate.mark_saved()
+
+
+@asynccontextmanager
+async def execute_transaction(repository: Any, global_id: str = None):
+    """An asynchronous context manager to use a repository.
+
+    Takes a repository, yields an aggregate.
+    If no aggregate ID is provided, it will create a new one
+    """
+    try:
+        if global_id is not None:
+            aggregate = await repository.load(global_id)
+        else:
+            aggregate = repository.aggregate()
+        yield aggregate
+        if aggregate is not None:
+            await repository.save(aggregate)
+    except AttributeError:
+        logger.error(
+            "Repository '%r' must implement have an 'aggregate' attribute and "
+            "define 'load' and 'save' methods. A repository type may be "
+            "obtained by subclassing "
+            "'aioeventsourcing.aggregates.AggregateRepository'.",
+            repository,
+        )
+        raise

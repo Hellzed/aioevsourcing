@@ -20,18 +20,22 @@ import logging
 from abc import ABC, abstractmethod
 
 # dataclasses is a standard module in Python 3.7. Pylint doesn't know this.
-from dataclasses import asdict  # pylint: disable=wrong-import-order
-from typing import Any, Callable, Dict, List, Optional, Type
+# pylint: disable=wrong-import-order
+from dataclasses import asdict, dataclass, field
 
-from aioevsourcing import aggregates
+# pylint: enable=wrong-import-order
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Type
+from typing_extensions import Protocol, runtime
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
-class Event(ABC):
-    """Event abstract base class.
+@runtime
+class Event(Protocol):
+    """Event protocol.
 
-    Subclass to create your own event.
+    Subclass to create your own event, or just provide an object compatible with
+    the protocol.
 
     For convenience, use as a frozen dataclass.
 
@@ -46,20 +50,35 @@ class Event(ABC):
     ...     example_prop: str = "example value"
     """
 
-    topic = None
+    topic: str = None
 
     @abstractmethod
-    def apply_to(self, aggregate: aggregates.Aggregate) -> None:
+    def apply_to(self, aggregate: object) -> None:
         """Mutate an aggregate by applying the event.
 
         To enhance modularity, the aggregate calls this method through its own
         `apply` when passed a supported event.
 
         Args:
-            aggregate (aggregates.Aggregate): The aggregate to which apply the
+            aggregate (object): The aggregate to which apply the
                 event.
         """
         pass
+
+
+@dataclass
+class EventStream:
+    """An event stream is a versioned (ordered) list of events.
+
+    It is used to save and replay, or otherwise transport events.
+
+    Args:
+        version (int): An version number. Defaults to 0.
+        events (List[Event]): A list of Events. Default to an empty list.
+    """
+
+    version: int = 0
+    events: List[Event] = field(default_factory=list)
 
 
 class EventRegistry(Dict[str, Type[Event]]):
@@ -81,7 +100,7 @@ class SelfRegisteringEvent(Event, ABC):
             registry.
     """
 
-    registry = EventRegistry()
+    registry: EventRegistry = EventRegistry()
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
@@ -123,26 +142,37 @@ class EventBus(collections.abc.AsyncIterator, ABC):
         self,
         registry: EventRegistry = None,
         queue: asyncio.Queue = asyncio.Queue(),
+        context: Any = None,
     ) -> None:
         self._queue = queue
         self._registry = registry
         self._subscriptions: Dict[str, List[Callable]] = {}
+        self._context = context
 
     async def __anext__(self):
         message = await self._queue.get()
         return self._decode(message)
 
-    def subscribe(self, reactor, topic):
+    def subscribe(self, reactor, *topics):
         """Subscribe a reactor to a topic
 
         Args:
             reactor: A reactor
             topic (str): A topic.
         """
-        try:
-            self._subscriptions[topic].append(reactor)
-        except KeyError:
-            self._subscriptions[topic] = [reactor]
+        for topic in topics:
+            try:
+                self._subscriptions[topic].add(reactor)
+            except KeyError:
+                if topic not in list(self._registry):
+                    logger.warning(
+                        "Subscribing reactor '%s' to unknown topic "
+                        " '%s'. Event declaring this topic might be missing "
+                        "from the event repository.",
+                        reactor.__name__,
+                        topic,
+                    )
+                self._subscriptions[topic] = {reactor}
 
     async def publish(self, aggregate_id, event):
         """Publish an event under an aggregate_id in the bus.
@@ -162,11 +192,11 @@ class EventBus(collections.abc.AsyncIterator, ABC):
             async for aggregate_id, event in self:
                 print("Bus message:", aggregate_id, event)
                 subscriptions = self._subscriptions.get(event.topic, [])
-                await asyncio.gather(
-                    *[reactor(aggregate_id) for reactor in subscriptions]
-                )
+                for reactor in subscriptions:
+                    await asyncio.shield(reactor(aggregate_id, event, self._context))
 
         except asyncio.CancelledError:
+            await asyncio.gather(*self._pending_reactions)
             print(
                 "Stop listening. {} messages remaining.".format(
                     self._queue.qsize()
@@ -246,7 +276,15 @@ class ConcurrentStreamWriteError(RuntimeError):
     exists in the store).
     """
 
-    pass
+    def __init__(
+        self, global_id: str, expected_version: int, found_version: int
+    ) -> None:
+        super().__init__(
+            "Concurrency error: Aggregated ID '{}', cannot append events to "
+            "expected version {}, found version {}.".format(
+                global_id, expected_version, found_version
+            )
+        )
 
 
 class EventStore(ABC):
@@ -254,7 +292,7 @@ class EventStore(ABC):
     """
 
     @abstractmethod
-    async def load_stream(self, global_id):  # -> EventStream:
+    async def load_stream(self, global_id) -> EventStream:
         """Load an event stream by aggregate ID from the store.
 
         Args:
@@ -267,7 +305,7 @@ class EventStore(ABC):
     @abstractmethod
     async def append_to_stream(
         self,
-        global_id,
+        global_id: str,
         events: List[Event],
         expect_version: Optional[int] = None,
     ) -> None:

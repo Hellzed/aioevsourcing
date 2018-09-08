@@ -2,17 +2,23 @@
 
 Provides base command and error classes for an event sourcing application.
 """
-from abc import ABC, abstractmethod
+from abc import abstractmethod
+from typing_extensions import Protocol
+
+from aioevsourcing import events
 
 
-class Command(ABC):
-    """Command abstract base class. May be subclassed for command types.
+class Command(Protocol):
+    """Command protocol.
 
-    For simple commands, just use functions.
+    Subclass to create your own command, or just provide an object compatible
+    with the protocol.
     """
 
+    __name__: str = "anonymous_command"
+
     @abstractmethod
-    def __call__(self, *args, **kwargs):
+    def __call__(self, aggregate: object, *args, **kwargs) -> events.Event:
         pass
 
 

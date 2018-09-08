@@ -7,19 +7,20 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import List, Optional
 
-from aioevsourcing.aggregates import Aggregate
-from aioevsourcing.repositories import (
+from aioevsourcing.aggregates import (
+    Aggregate,
     AggregateRepository,
-    EventStream,
     execute_transaction,
 )
 from aioevsourcing.events import (
-    Event,
-    JsonEventBus,
-    EventStore,
     ConcurrentStreamWriteError,
+    Event,
+    EventStore,
+    EventStream,
+    JsonEventBus,
     SelfRegisteringEvent,
 )
+from aioevsourcing.reactors import reactor, ReactorRegistry
 
 db: dict = {}
 
@@ -99,9 +100,9 @@ class HumanRepository(AggregateRepository):
 
 class DummyEventStore(EventStore):
     async def load_stream(self, aggregate_id) -> EventStream:
-        events = db.get(aggregate_id)
-        if not events:
-            raise RuntimeError
+        events = db.get(aggregate_id, [])
+        # if not events:
+        #     raise DataNotFoundError
         return EventStream(version=len(events), events=events)
 
     async def append_to_stream(
@@ -122,38 +123,47 @@ class DummyEventStore(EventStore):
 
 
 async def close(_listen_task):
-    await sleep(0.1)
+
     _listen_task.cancel()
     await _listen_task
 
 
-async def reactor0(_):
+
+reactors = ReactorRegistry()
+
+
+@reactor(registry=reactors, key="say.hello")
+async def reactor0(*_):
+    print("enter r0")
+    await sleep(1)
     print("Hello reactor!")
 
 
+@reactor(registry=reactors, key="say.hello2")
+async def reactor1(aggregate_id, *_):
+    print("enter r1")
+    async with execute_transaction(human_repo, aggregate_id) as h1:
+        print("Retrieved name:", h1.name)
+
+
 async def business():
-    human_one_id = None
-
     async with execute_transaction(human_repo) as h1:
-        await sleep(1)
         h1.execute(birth, "Otto")
-        human_one_id = h1.global_id
-
-    print(h1)
-    async with execute_transaction(human_repo, human_one_id) as h1_again:
-        await sleep(1)
-        print("Retrieved name:", h1_again.name)
-    print(h1_again)
 
 
 if __name__ == "__main__":
     loop = get_event_loop()
+    config = {"say.hello": ["human.born"], "say.hello2": ["human.born"]}
 
     human_bus = JsonEventBus(registry=HumanEvent.registry)
-    human_bus.subscribe(reactor0, "human.born")
-    # for stuff in config subscribe topic
+    for key in config:
+        human_bus.subscribe(reactors[key], *config[key])
+
     human_repo = HumanRepository(DummyEventStore(), event_bus=human_bus)
     listen_task = loop.create_task(human_bus.listen())
 
     loop.run_until_complete(business())
-    loop.run_until_complete(close(listen_task))
+
+    listen_task.cancel()
+    loop.run_until_complete(sleep(3))
+    loop.run_until_complete(listen_task)
