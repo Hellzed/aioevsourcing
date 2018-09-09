@@ -128,14 +128,13 @@ async def close(_listen_task):
     await _listen_task
 
 
-
 reactors = ReactorRegistry()
 
 
 @reactor(registry=reactors, key="say.hello")
 async def reactor0(*_):
     print("enter r0")
-    await sleep(1)
+    await sleep(3)
     print("Hello reactor!")
 
 
@@ -155,15 +154,17 @@ if __name__ == "__main__":
     loop = get_event_loop()
     config = {"say.hello": ["human.born"], "say.hello2": ["human.born"]}
 
-    human_bus = JsonEventBus(registry=HumanEvent.registry)
+    human_bus = JsonEventBus(registry=HumanEvent.registry, loop=loop)
     for key in config:
         human_bus.subscribe(reactors[key], *config[key])
 
     human_repo = HumanRepository(DummyEventStore(), event_bus=human_bus)
-    listen_task = loop.create_task(human_bus.listen())
+    human_bus.listen()
 
     loop.run_until_complete(business())
 
-    listen_task.cancel()
-    loop.run_until_complete(sleep(3))
-    loop.run_until_complete(listen_task)
+    #
+    loop.run_until_complete(sleep(2))
+
+    loop.run_until_complete(human_bus.close())
+    # loop.run_until_complete(listen_task)

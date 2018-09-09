@@ -143,15 +143,28 @@ class EventBus(collections.abc.AsyncIterator, ABC):
         registry: EventRegistry = None,
         queue: asyncio.Queue = asyncio.Queue(),
         context: Any = None,
+        loop: asyncio.AbstractEventLoop = None,
     ) -> None:
         self._queue = queue
         self._registry = registry
         self._subscriptions: Dict[str, List[Callable]] = {}
         self._context = context
+        self._loop = loop if loop is not None else asyncio.get_event_loop()
+        self._closed = False
+        self._listen_task = None
 
     async def __anext__(self):
+        if self._closed:
+            raise StopAsyncIteration
         message = await self._queue.get()
         return self._decode(message)
+
+    async def close(self, timeout=5):
+        self._closed = True
+        if self._listen_task is not None:
+            self._listen_task.cancel()
+            await asyncio.sleep(timeout)
+            await self._listen_task
 
     def subscribe(self, reactor, *topics):
         """Subscribe a reactor to a topic
@@ -174,7 +187,7 @@ class EventBus(collections.abc.AsyncIterator, ABC):
                     )
                 self._subscriptions[topic] = {reactor}
 
-    async def publish(self, aggregate_id, event):
+    async def publish(self, aggregate_id: str, event: Event):
         """Publish an event under an aggregate_id in the bus.
 
         Args:
@@ -184,27 +197,41 @@ class EventBus(collections.abc.AsyncIterator, ABC):
         message = self._encode(aggregate_id, event)
         await self._queue.put(message)
 
-    async def listen(self):
-        """Shorthand to listen to the bus for events, dispatch them to reactors.
+    async def react(self, aggregate_id, event: Event):
+        """Publish an event under an aggregate_id in the bus.
+
+        Args:
+            aggregate_id (str): An aggregate ID.
+            event (Event): An event.
         """
+        subscriptions = self._subscriptions.get(event.topic, [])
+        asyncio.gather(
+            *[
+                reactor(aggregate_id, event, self._context)
+                for reactor in subscriptions
+            ]
+        )
+
+    async def _event_listener(self):
+        print("Listening...")
         try:
-            print("Listening...")
             async for aggregate_id, event in self:
                 print("Bus message:", aggregate_id, event)
-                subscriptions = self._subscriptions.get(event.topic, [])
-                for reactor in subscriptions:
-                    await asyncio.shield(reactor(aggregate_id, event, self._context))
-
+                await asyncio.shield(self.react(aggregate_id, event))
         except asyncio.CancelledError:
-            await asyncio.gather(*self._pending_reactions)
             print(
                 "Stop listening. {} messages remaining.".format(
                     self._queue.qsize()
                 )
             )
 
+    def listen(self):
+        """Shorthand to listen to the bus for events, dispatch them to reactors.
+        """
+        self._listen_task = self._loop.create_task(self._event_listener())
+
     @abstractmethod
-    def _encode(self, aggregate_id: str, event: object) -> Any:
+    def _encode(self, aggregate_id: str, event: Event) -> Any:
         """Encode an aggregate ID and an event into a message.
 
         The message format must be supported by the bus queue.
