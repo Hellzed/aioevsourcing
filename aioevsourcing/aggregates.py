@@ -136,7 +136,7 @@ class Aggregate(ABC):
         """
         try:
             # Is mypy confused by the __call__ method in protocol?
-            event = command(self, *args, **kwargs) # type: ignore
+            event = command(self, *args, **kwargs)  # type: ignore
             if not isinstance(event, events.Event):
                 raise commands.MustReturnEventError(command)
             self.apply(event)
