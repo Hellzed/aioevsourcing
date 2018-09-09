@@ -208,8 +208,8 @@ class EventBus(collections.abc.AsyncIterator, ABC):
         message = self._encode(aggregate_id, event)
         await self._queue.put(message)
 
-    async def react(self, aggregate_id, event: Event):
-        """Publish an event under an aggregate_id in the bus.
+    async def react(self, aggregate_id: str, event: Event):
+        """Run reactors with arguments (aggregate ID, event, context)
 
         Args:
             aggregate_id (str): An aggregate ID.
@@ -224,6 +224,10 @@ class EventBus(collections.abc.AsyncIterator, ABC):
         )
 
     async def _event_listener(self):
+        """The central event listener. Only used as a long running private task.
+
+        See the 'listen' method for actual use.
+        """
         print("Listening...")
         try:
             async for aggregate_id, event in self:
