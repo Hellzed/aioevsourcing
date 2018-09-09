@@ -228,16 +228,15 @@ class EventBus(collections.abc.AsyncIterator, ABC):
 
         See the 'listen' method for actual use.
         """
-        print("Listening...")
+        logger.info("Listening for events...")
         try:
             async for aggregate_id, event in self:
-                print("Bus message:", aggregate_id, event)
+                logger.debug("Bus message: %s, %r", aggregate_id, event)
                 await asyncio.shield(self.react(aggregate_id, event))
         except asyncio.CancelledError:
-            print(
-                "Stop listening. {} messages remaining.".format(
-                    self._queue.qsize()
-                )
+            logger.info(
+                "Stop listening. %s messages remaining.",
+                str(self._queue.qsize()),
             )
 
     def listen(self):
