@@ -144,14 +144,14 @@ class EventBus(collections.abc.AsyncIterator, ABC):
         registry: EventRegistry = None,
         queue: asyncio.Queue = asyncio.Queue(),
         context: Any = None,
-        loop: asyncio.AbstractEventLoop = None,
+        loop: asyncio.AbstractEventLoop = asyncio.get_event_loop(),
     ) -> None:
         self._queue = queue
         self._registry = registry
         self._subscriptions: Dict[str, Set[Callable]] = {}
         self._context = context
-        self._loop = loop if loop is not None else asyncio.get_event_loop()
-        self._closed = False
+        self._loop = loop
+        self._closed = True
         self._listen_task: Task = None
 
     async def __anext__(self) -> Tuple:
@@ -160,7 +160,7 @@ class EventBus(collections.abc.AsyncIterator, ABC):
         message = await self._queue.get()
         return self._decode(message)
 
-    async def close(self, timeout: int = 2) -> None:
+    async def close(self, timeout: int = 30) -> None:
         """Close the event bus.
 
         The event bus won't get new events from the queue.
@@ -223,6 +223,8 @@ class EventBus(collections.abc.AsyncIterator, ABC):
                 for reactor in subscriptions
             ]
         )
+        # self.acknowledge(event) to remove it from the retry mechanism of a
+        # safe queue like an LPOPRPUSH Redis queue
 
     async def _event_listener(self) -> None:
         """The central event listener. Only used as a long running private task.
@@ -233,6 +235,7 @@ class EventBus(collections.abc.AsyncIterator, ABC):
         try:
             async for aggregate_id, event in self:
                 logger.debug("Bus message: %s, %r", aggregate_id, event)
+                # Shield reactors execution from listening task cancellation
                 await asyncio.shield(self.react(aggregate_id, event))
         except asyncio.CancelledError:
             logger.info(
@@ -243,6 +246,7 @@ class EventBus(collections.abc.AsyncIterator, ABC):
     def listen(self) -> None:
         """Shorthand to listen to the bus for events, dispatch them to reactors.
         """
+        self._closed = False
         self._listen_task = self._loop.create_task(self._event_listener())
 
     @abstractmethod
