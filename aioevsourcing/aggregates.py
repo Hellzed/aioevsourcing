@@ -5,6 +5,7 @@ as well as a base repository class to handle saving/loading aggregates.
 """
 import collections
 import logging
+import uuid
 
 from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
@@ -183,7 +184,7 @@ class EventNotSupportedError(TypeError):
         )
 
 
-class BadEventStreamError(AttributeError):
+class BadEventStreamError(TypeError):
     """Raise this error when an event stream lacks version or event attributes
     """
 
@@ -214,6 +215,7 @@ class AggregateRepository(ABC):
     ) -> None:
         self.event_store = event_store
         self.event_bus = event_bus
+        self._active_transactions: Dict[str, str] = {}
 
     @property
     @abstractmethod
@@ -247,7 +249,8 @@ class AggregateRepository(ABC):
         """
         if not aggregate.changes:
             logger.info(
-                "Nothing to save in repository '%s' for aggregate '%r'",
+                "Nothing to save in repository '%s' for aggregate '%r', "
+                "consider using '<repo>.load' directly for read-only access.",
                 type(self),
                 aggregate,
             )
@@ -271,6 +274,54 @@ class AggregateRepository(ABC):
         if mark_saved:
             aggregate.mark_saved()
 
+    def open_transaction(self, aggregate_id: str) -> str:
+        """Open a transaction on the repository, registered for an aggregate ID.
+
+        Args:
+            aggregate_id (str): The ID of the aggregate.
+
+        Returns:
+            transaction_id (str): The ID of the transaction.
+        """
+        transaction_id = str(uuid.uuid4())
+        self._active_transactions[transaction_id] = aggregate_id or "anonymous"
+        return transaction_id
+
+    def close_transaction(self, transaction_id: str) -> None:
+        """Close a transaction on the repository.
+
+        Args:
+            transaction_id (str): The ID of the transaction.
+        """
+        try:
+            self._active_transactions.pop(transaction_id)
+        except KeyError:
+            pass
+
+    @staticmethod
+    def _format_transactions(transactions: Dict[str, str]) -> str:
+        return "\n".join(
+            [
+                "Tansaction ID: '{}' on aggregate '{}'".format(*transaction)
+                for transaction in transactions.items()
+            ]
+        )
+
+    def close(self) -> None:
+        """Warn if transactions are still active.
+
+        Repository 'closing' is the best practice to get a log about aggregates
+        that may have been partially processed in the event of a forced
+        application shutdown.
+        """
+        if self._active_transactions:
+            logger.warning(
+                "Repository '%r' had active transactions on close:\n%s"
+                "\nEvents may have fallon off the bus!",
+                self,
+                self._format_transactions(self._active_transactions),
+            )
+
 
 @asynccontextmanager
 async def execute_transaction(
@@ -279,9 +330,11 @@ async def execute_transaction(
     """An asynchronous context manager to use a repository.
 
     Takes a repository, yields an aggregate.
-    If no aggregate ID is provided, it will create a new one
+    If no aggregate ID is provided, it will create a new one.
     """
     try:
+        aggregate = None
+        transaction_id = repository.open_transaction(global_id)
         if global_id is not None:
             aggregate = await repository.load(global_id)
         else:
@@ -298,3 +351,5 @@ async def execute_transaction(
             repository,
         )
         raise
+    finally:
+        repository.close_transaction(transaction_id)
