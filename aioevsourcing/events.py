@@ -12,6 +12,8 @@ When implementing an event store, the concurrent write error is used to
 customise write behaviour.
 """
 import asyncio
+from asyncio import Task
+
 import collections
 import inspect
 import json
@@ -24,7 +26,7 @@ from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 
 # pylint: enable=wrong-import-order
-from typing import Any, Callable, Dict, List, Optional, Type
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Type
 from typing_extensions import Protocol, runtime
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
@@ -102,8 +104,7 @@ class SelfRegisteringEvent(Event, ABC):
 
     registry: EventRegistry = EventRegistry()
 
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
+    def __init_subclass__(cls, *_: Tuple) -> None:
         if not inspect.isabstract(cls):
             # pylint: disable=unsupported-assignment-operation
             if not cls.topic:
@@ -115,7 +116,7 @@ class SelfRegisteringEvent(Event, ABC):
                     )
                 )
             else:
-                cls.registry[cls.topic] = cls
+                cls.registry[cls.topic] = cls  # type: ignore
 
 
 class EventBus(collections.abc.AsyncIterator, ABC):
@@ -147,19 +148,19 @@ class EventBus(collections.abc.AsyncIterator, ABC):
     ) -> None:
         self._queue = queue
         self._registry = registry
-        self._subscriptions: Dict[str, List[Callable]] = {}
+        self._subscriptions: Dict[str, Set[Callable]] = {}
         self._context = context
         self._loop = loop if loop is not None else asyncio.get_event_loop()
         self._closed = False
-        self._listen_task = None
+        self._listen_task: Task = None
 
-    async def __anext__(self):
+    async def __anext__(self) -> Tuple:
         if self._closed:
             raise StopAsyncIteration
         message = await self._queue.get()
         return self._decode(message)
 
-    async def close(self, timeout=30):
+    async def close(self, timeout: int = 2) -> None:
         """Close the event bus.
 
         The event bus won't get new events from the queue.
@@ -177,7 +178,7 @@ class EventBus(collections.abc.AsyncIterator, ABC):
             await asyncio.sleep(timeout)
             await self._listen_task
 
-    def subscribe(self, reactor, *topics):
+    def subscribe(self, reactor: Callable, *topics: str) -> None:
         """Subscribe a reactor to a topic.
 
         Args:
@@ -198,7 +199,7 @@ class EventBus(collections.abc.AsyncIterator, ABC):
                     )
                 self._subscriptions[topic] = {reactor}
 
-    async def publish(self, aggregate_id: str, event: Event):
+    async def publish(self, aggregate_id: str, event: Event) -> None:
         """Publish an event under an aggregate_id in the bus.
 
         Args:
@@ -208,7 +209,7 @@ class EventBus(collections.abc.AsyncIterator, ABC):
         message = self._encode(aggregate_id, event)
         await self._queue.put(message)
 
-    async def react(self, aggregate_id: str, event: Event):
+    async def react(self, aggregate_id: str, event: Event) -> None:
         """Run reactors with arguments (aggregate ID, event, context)
 
         Args:
@@ -223,7 +224,7 @@ class EventBus(collections.abc.AsyncIterator, ABC):
             ]
         )
 
-    async def _event_listener(self):
+    async def _event_listener(self) -> None:
         """The central event listener. Only used as a long running private task.
 
         See the 'listen' method for actual use.
@@ -239,7 +240,7 @@ class EventBus(collections.abc.AsyncIterator, ABC):
                 str(self._queue.qsize()),
             )
 
-    def listen(self):
+    def listen(self) -> None:
         """Shorthand to listen to the bus for events, dispatch them to reactors.
         """
         self._listen_task = self._loop.create_task(self._event_listener())
@@ -277,11 +278,11 @@ class JsonEventBus(EventBus):
         json: A JSON serializer.
     """
 
-    def __init__(self, serializer=json, **kwargs):
+    def __init__(self, serializer=json, **kwargs: Any) -> None:  # type: ignore
         super().__init__(**kwargs)
         self.json = serializer
 
-    def _encode(self, aggregate_id, event):
+    def _encode(self, aggregate_id: str, event: Event) -> Any:
         """Encode an aggregate ID and an event into a JSON message for the bus.
 
         Args:
@@ -296,7 +297,7 @@ class JsonEventBus(EventBus):
             }
         )
 
-    def _decode(self, message):
+    def _decode(self, message: object) -> Tuple[str, Event]:
         """Decode a JSON queue message into a tuple of (aggregate ID, event).
 
         Args:
@@ -307,7 +308,9 @@ class JsonEventBus(EventBus):
         data = self.json.loads(message)
         return (
             data["aggregate_id"],
-            self._registry[data["event"]["topic"]](**data["event"]["data"]),
+            self._registry[data["event"]["topic"]](  # type: ignore
+                **data["event"]["data"]
+            ),
         )
 
 
@@ -333,7 +336,7 @@ class EventStore(ABC):
     """
 
     @abstractmethod
-    async def load_stream(self, global_id) -> EventStream:
+    async def load_stream(self, global_id: str) -> EventStream:
         """Load an event stream by aggregate ID from the store.
 
         Args:

@@ -3,11 +3,12 @@
 Provides a base aggregate class for an event sourcing application,
 as well as a base repository class to handle saving/loading aggregates.
 """
+import collections
 import logging
 
 from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
-from typing import Any, Awaitable, List
+from typing import Dict, List, Tuple, Type
 
 from aioevsourcing import commands, events
 
@@ -48,8 +49,7 @@ class Aggregate(ABC):
 
     global_id: str
 
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
+    def __init_subclass__(cls, *_: Tuple) -> None:
         if not isinstance(cls.event_types, tuple):
             raise TypeError(
                 "{}: 'event_types' must be a tuple of types, not '{}'.".format(
@@ -70,7 +70,7 @@ class Aggregate(ABC):
         self._saved = True
         self._changes: List = []
 
-    def __del__(self):
+    def __del__(self) -> None:
         if not self._saved:
             logger.warning(
                 "Aggregate '%r' not saved before going out of scope", self
@@ -78,19 +78,19 @@ class Aggregate(ABC):
 
     @property
     @abstractmethod
-    def event_types(self):
-        """List of supported Event types
+    def event_types(self) -> Tuple[Type[events.Event], ...]:
+        """Tuple of supported Event types
         """
         pass
 
     @property
-    def version(self):
+    def version(self) -> int:
         """Current aggregate version (as of when the aggregate was loaded)
         """
         return self._version
 
     @property
-    def changes(self):
+    def changes(self) -> List[events.Event]:
         """List of events as changes (since the aggregate was loaded)
         """
         return self._changes
@@ -115,7 +115,9 @@ class Aggregate(ABC):
         except (AttributeError, NotImplementedError):
             logger.error("Event '%r' must implement an 'apply' method.", event)
 
-    def execute(self, command: commands.Command, *args, **kwargs) -> None:
+    def execute(
+        self, command: commands.Command, *args: Tuple, **kwargs: Dict
+    ) -> None:
         """Call a command to mutate the aggregate.
 
         Internally the command must issue an event that will be passed to the
@@ -133,7 +135,8 @@ class Aggregate(ABC):
                 transaction script currently managing the aggregate.
         """
         try:
-            event = command(self, *args, **kwargs)
+            # Is mypy confused by the __call__ method in protocol?
+            event = command(self, *args, **kwargs) # type: ignore
             if not isinstance(event, events.Event):
                 raise commands.MustReturnEventError(command)
             self.apply(event)
@@ -157,7 +160,7 @@ class Aggregate(ABC):
             )
             raise
 
-    def mark_saved(self):
+    def mark_saved(self) -> None:
         """Mark the aggregate as "saved".
 
         This disables the warning otherwise logged if an aggregate goes out of
@@ -206,18 +209,20 @@ class AggregateRepository(ABC):
             save/load to/from this repository.
     """
 
-    def __init__(self, event_store, event_bus=None) -> None:
+    def __init__(
+        self, event_store: events.EventStore, event_bus: events.EventBus = None
+    ) -> None:
         self.event_store = event_store
         self.event_bus = event_bus
 
     @property
     @abstractmethod
-    def aggregate(self):
+    def aggregate(self) -> Type[Aggregate]:
         """The aggregate type to load/save from this repository.
         """
         pass
 
-    async def load(self, global_id: str) -> Awaitable[Aggregate]:
+    async def load(self, global_id: str) -> Aggregate:
         """Load an aggregate by ID.
 
         Args:
@@ -268,7 +273,9 @@ class AggregateRepository(ABC):
 
 
 @asynccontextmanager
-async def execute_transaction(repository: Any, global_id: str = None):
+async def execute_transaction(
+    repository: AggregateRepository, global_id: str = None
+) -> collections.abc.AsyncGenerator:
     """An asynchronous context manager to use a repository.
 
     Takes a repository, yields an aggregate.
