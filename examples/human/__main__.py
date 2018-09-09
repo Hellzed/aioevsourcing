@@ -1,4 +1,6 @@
+import logging
 import uuid
+import os
 from abc import ABC
 from asyncio import get_event_loop, sleep
 
@@ -23,6 +25,8 @@ from aioevsourcing.events import (
 from aioevsourcing.reactors import reactor, ReactorRegistry
 
 db: dict = {}
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=os.environ.get("LOGLEVEL", "INFO"))
 
 
 class Status(str, Enum):
@@ -142,6 +146,7 @@ async def reactor0(*_):
 async def reactor1(aggregate_id, *_):
     print("enter r1")
     async with execute_transaction(human_repo, aggregate_id) as h1:
+        await sleep(2)
         print("Retrieved name:", h1.name)
 
 
@@ -154,9 +159,12 @@ if __name__ == "__main__":
     loop = get_event_loop()
     config = {"say.hello": ["human.born"], "say.hello2": ["human.born"]}
 
-    human_bus = JsonEventBus(registry=HumanEvent.registry, loop=loop)
+    human_bus = JsonEventBus(registry=HumanEvent.registry)
     for key in config:
-        human_bus.subscribe(reactors[key], *config[key])
+        try:
+            human_bus.subscribe(reactors[key], *config[key])
+        except KeyError:
+            logger.warning("No reactor found for config key '%s'!", key)
 
     human_repo = HumanRepository(DummyEventStore(), event_bus=human_bus)
     human_bus.listen()
@@ -166,5 +174,6 @@ if __name__ == "__main__":
     #
     loop.run_until_complete(sleep(2))
 
-    loop.run_until_complete(human_bus.close())
+    loop.run_until_complete(human_bus.close(timeout=2))
+    human_repo.close()
     # loop.run_until_complete(listen_task)
