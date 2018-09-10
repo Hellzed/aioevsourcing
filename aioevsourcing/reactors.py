@@ -6,8 +6,8 @@ import inspect
 import logging
 
 from abc import ABC, abstractmethod
-from typing import Dict, Type
-from typing_extensions import Awaitable, Protocol
+from typing import Any, Awaitable, Callable, Dict
+from typing_extensions import Protocol
 
 from aioevsourcing import events
 
@@ -25,12 +25,12 @@ class Reactor(Protocol):
 
     @abstractmethod
     async def __call__(
-        self, aggregate_id: str, event: events.Event, context
+        self, aggregate_id: str, event: events.Event, context: Any
     ) -> Awaitable:
         pass
 
 
-class ReactorRegistry(Dict[str, Type[Reactor]]):
+class ReactorRegistry(Dict[str, Reactor]):
     """A reactor registry holding reactor types as values indexed by strings.
 
     Behaves as a normal dict, but useful for clarity and static type checking.
@@ -51,8 +51,7 @@ class SelfRegisteringReactor(Reactor, ABC):
 
     registry: ReactorRegistry = ReactorRegistry()
 
-    def __init_subclass__(cls, **kwargs):
-        super().__init_subclass__(**kwargs)
+    def __init_subclass__(cls, **_: Dict) -> None:
         if not inspect.isabstract(cls):
             # pylint: disable=unsupported-assignment-operation
             if not cls.key:
@@ -64,13 +63,15 @@ class SelfRegisteringReactor(Reactor, ABC):
                     )
                 )
             else:
-                cls.registry[cls.key] = cls
+                cls.registry[cls.key] = cls  # type: ignore
 
 
-def reactor(registry: ReactorRegistry = None, key: str = None):
+def reactor(
+    registry: ReactorRegistry = None, key: str = None
+) -> Callable[[Reactor], Reactor]:
     """Decorate a function to and define a registry and a key to register it"""
 
-    def reactor_decorator(func):
+    def reactor_decorator(func: Reactor) -> Reactor:
         if registry is not None and key is not None:
             registry[key] = func
         return func
