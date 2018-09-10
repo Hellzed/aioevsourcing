@@ -70,35 +70,6 @@ def birth(_, name) -> Event:
     return Born(name=name, global_id=str(uuid.uuid4()))
 
 
-@dataclass(frozen=True)
-class Renamed(HumanEvent):
-    name: str
-
-    def apply(self, aggregate: Human) -> None:
-        aggregate.name = self.name
-
-
-@dataclass(frozen=True)
-class TimePassed(HumanEvent):
-    years: int
-
-    def apply(self, aggregate: Human) -> None:
-        aggregate.age += self.years
-
-
-@dataclass(frozen=True)
-class Died(HumanEvent):
-    status: Status = Status.DEAD
-
-    def apply(self, aggregate: Human) -> None:
-        aggregate.status = self.status
-        print(
-            "{} is now {}. Goodbye {}, you will be sorely missed!".format(
-                aggregate.name, aggregate.status.value, aggregate.name
-            )
-        )
-
-
 class HumanRepository(AggregateRepository):
     aggregate = Human
 
@@ -124,7 +95,7 @@ class DummyEventStore(EventStore):
                 and len(db[aggregate_id]) is not expect_version
             ):
                 raise ConcurrentStreamWriteError
-            db[aggregate_id] = [*db[aggregate_id], *events]
+            db[aggregate_id].extend(events)
 
 
 async def close(_listen_task):
