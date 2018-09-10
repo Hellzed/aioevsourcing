@@ -1,9 +1,15 @@
-import pytest
+import sys
+import warnings
 
 from abc import ABC
 from dataclasses import dataclass
+
+import pytest
+
 from aioevsourcing import aggregates, commands, events
 
+if not sys.warnoptions:
+    warnings.simplefilter("ignore", ResourceWarning)
 
 class DummyEvent(events.Event, ABC):
     pass
