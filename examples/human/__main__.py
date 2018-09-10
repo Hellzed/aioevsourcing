@@ -65,6 +65,7 @@ class Born(HumanEvent):
 
 
 def birth(_, name) -> Event:
+    # do validation here
     print("Giving birth to a new human. His name will be {}!".format(name))
     return Born(name=name, global_id=str(uuid.uuid4()))
 
@@ -145,7 +146,9 @@ async def reactor0(*_):
 @reactor(registry=reactors, key="say.hello2")
 async def reactor1(aggregate_id, *_):
     print("enter r1")
+    # do aync stuff that does not require the aggregate here
     async with execute_transaction(human_repo, aggregate_id) as h1:
+        # do async stuff that requires the aggregate here
         await sleep(2)
         print("Retrieved name:", h1.name)
 

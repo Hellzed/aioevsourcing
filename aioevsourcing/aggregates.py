@@ -351,5 +351,7 @@ async def execute_transaction(
             repository,
         )
         raise
+    # handle concurrent write error here, probably reraise so calling coro will
+    # recalculate changes. Or not?
     finally:
         repository.close_transaction(transaction_id)
