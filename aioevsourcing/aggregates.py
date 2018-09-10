@@ -318,7 +318,7 @@ class AggregateRepository(ABC):
         if self._active_transactions:
             logger.warning(
                 "Repository '%r' had active transactions on close:\n%s"
-                "\nEvents may have fallon off the bus!",
+                "\nEvents may have fallen off the bus!",
                 self,
                 self._format_transactions(self._active_transactions),
             )
@@ -327,7 +327,7 @@ class AggregateRepository(ABC):
 @asynccontextmanager
 async def execute_transaction(
     repository: AggregateRepository, global_id: Optional[str] = None
-) -> AsyncIterator:
+) -> AsyncIterator[Aggregate]:
     """An asynchronous context manager to use a repository.
 
     Takes a repository, yields an aggregate.
