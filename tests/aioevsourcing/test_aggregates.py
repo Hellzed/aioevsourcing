@@ -18,9 +18,11 @@ class DummyAggregate(aggregates.Aggregate):
 
     dummy_prop: str
 
+
 @pytest.fixture
 def aggregate():
     return DummyAggregate()
+
 
 def test_aggregate_init(aggregate):
     assert aggregate.event_types is DUMMY_TYPES
