@@ -3,7 +3,7 @@
 Provides base command and error classes for an event sourcing application.
 """
 from abc import abstractmethod
-from typing import Dict, Tuple
+from typing import Any
 from typing_extensions import Protocol
 
 from aioevsourcing import events
@@ -20,7 +20,7 @@ class Command(Protocol):
 
     @abstractmethod
     def __call__(
-        self, aggregate: object, *args: Tuple, **kwargs: Dict
+        self, aggregate: object, *args: Any, **kwargs: Any
     ) -> events.Event:
         pass
 

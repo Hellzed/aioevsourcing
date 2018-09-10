@@ -8,7 +8,7 @@ import uuid
 
 from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
-from typing import AsyncIterator, Dict, List, Optional, Tuple, Type
+from typing import Any, AsyncIterator, Dict, List, Optional, Tuple, Type
 
 from aioevsourcing import commands, events
 
@@ -60,6 +60,7 @@ class Aggregate(ABC):
     def __init__(
         self, event_stream: events.EventStream = events.EventStream()
     ) -> None:
+        self._saved: bool = True
         if not isinstance(event_stream, events.EventStream):
             raise BadEventStreamError(event_stream)
 
@@ -67,7 +68,6 @@ class Aggregate(ABC):
         for event in event_stream.events:
             self.apply(event)
 
-        self._saved: bool = True
         self._changes: List[events.Event] = []
 
     def __del__(self) -> None:
@@ -88,6 +88,12 @@ class Aggregate(ABC):
         """Current aggregate version (as of when the aggregate was loaded)
         """
         return self._version
+
+    @property
+    def saved(self) -> bool:
+        """List of events as changes (since the aggregate was loaded)
+        """
+        return self._saved
 
     @property
     def changes(self) -> List[events.Event]:
@@ -116,7 +122,7 @@ class Aggregate(ABC):
             logger.error("Event '%r' must implement an 'apply' method.", event)
 
     def execute(
-        self, command: commands.Command, *args: Tuple, **kwargs: Dict
+        self, command: commands.Command, *args: Any, **kwargs: Any
     ) -> None:
         """Call a command to mutate the aggregate.
 
@@ -151,6 +157,7 @@ class Aggregate(ABC):
                 type(self).__name__,
                 str(cmd_error),
             )
+            raise
         except Exception as cmd_error:
             logger.error(
                 "%s: Command '%s.%s' failed. Aggregate left unchanged.",
@@ -251,7 +258,8 @@ class AggregateRepository(ABC):
         if not aggregate.changes:
             logger.info(
                 "Nothing to save in repository '%s' for aggregate '%r', "
-                "consider using '<repo>.load' directly for read-only access.",
+                "consider using '<repo>.load(aggregate_id)' directly for "
+                "read-only access.",
                 type(self),
                 aggregate,
             )
