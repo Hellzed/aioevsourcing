@@ -112,7 +112,9 @@ class SelfRegisteringEvent(Event, ABC):
         if not inspect.isabstract(cls):
             # pylint: disable=unsupported-assignment-operation
             if not cls.topic:
-                logger.warning("No topic set for event %r", cls)
+                raise ValueError(
+                    "Empty topic set for event '{}'".format(repr(cls))
+                )
             elif not isinstance(cls.topic, str):
                 raise TypeError(
                     "{}: 'topic' must be a 'str', not '{}'.".format(
