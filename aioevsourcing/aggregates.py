@@ -263,12 +263,14 @@ class AggregateRepository(ABC):
             aggregate (aggregates.Aggregate): The ID of the aggregate to save.
         """
         if not aggregate.changes:
-            logger.info(
-                "Nothing to save in repository '%s' for aggregate '%r', "
+            warnings.warn(
+                "Nothing to save in repository '{}' for aggregate '{}', "
                 "consider using '<repo>.load(aggregate_id)' directly for "
-                "read-only access.",
-                type(self),
-                aggregate,
+                "read-only access, and avoid saving the same aggregate twice.\n"
+                "Note: 'execute_transaction()' auo-saves".format(
+                    type(self), aggregate
+                ),
+                SyntaxWarning,
             )
             return
         await self.event_store.append_to_stream(

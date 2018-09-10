@@ -43,8 +43,8 @@ class HumanEvent(SelfRegisteringEvent, ABC):
 class Human(Aggregate):
     event_types = (HumanEvent,)
 
-    global_id: str
-    name: str
+    global_id: str = ""
+    name: str = ""
     status: Status = Status.UNKNOWN
     age: int = 0
 
@@ -127,6 +127,9 @@ async def reactor1(aggregate_id, *_):
 async def business():
     async with execute_transaction(human_repo) as h1:
         h1.execute(birth, "Otto")
+
+    async with execute_transaction(human_repo) as h2:
+        pass
 
 
 if __name__ == "__main__":
