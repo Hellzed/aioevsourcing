@@ -4,7 +4,9 @@ Provides a base aggregate class for an event sourcing application,
 as well as a base repository class to handle saving/loading aggregates.
 """
 import logging
+import sys
 import uuid
+import warnings
 
 from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
@@ -13,6 +15,8 @@ from typing import Any, AsyncIterator, Dict, List, Optional, Tuple, Type
 from aioevsourcing import commands, events
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
+if not sys.warnoptions:
+    warnings.simplefilter("default")
 
 
 class Aggregate(ABC):
@@ -72,8 +76,11 @@ class Aggregate(ABC):
 
     def __del__(self) -> None:
         if not self._saved:
-            logger.warning(
-                "Aggregate '%r' not saved before going out of scope", self
+            warnings.warn(
+                "Aggregate '{}' not saved before going out of scope".format(
+                    repr(self)
+                ),
+                ResourceWarning,
             )
 
     @property
