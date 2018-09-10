@@ -118,10 +118,10 @@ async def reactor0(*_):
 async def reactor1(aggregate_id, *_):
     print("enter r1")
     # do aync stuff that does not require the aggregate here
-    async with execute_transaction(human_repo, aggregate_id) as h1:
-        # do async stuff that requires the aggregate here
-        await sleep(2)
-        print("Retrieved name:", h1.name)
+    h1 = await human_repo.load(aggregate_id)
+    # do async stuff that requires the aggregate here
+    await sleep(2)
+    print("Retrieved name:", h1.name)
 
 
 async def business():
