@@ -52,7 +52,11 @@ class Event(Protocol):
     ...     example_prop: str = "example value"
     """
 
-    topic: str = None
+    @property
+    @abstractmethod
+    def topic(self) -> str:
+        """The event topic used for configuration and bus operations"""
+        pass
 
     @abstractmethod
     def apply_to(self, aggregate: object) -> None:
@@ -141,9 +145,9 @@ class EventBus(collections.abc.AsyncIterator, ABC):
 
     def __init__(
         self,
-        registry: EventRegistry = None,
+        registry: EventRegistry,
         queue: asyncio.Queue = asyncio.Queue(),
-        context: Any = None,
+        context: Optional[Dict] = None,
         loop: asyncio.AbstractEventLoop = asyncio.get_event_loop(),
     ) -> None:
         self._queue = queue
@@ -152,7 +156,7 @@ class EventBus(collections.abc.AsyncIterator, ABC):
         self._context = context
         self._loop = loop
         self._closed = True
-        self._listen_task: Task = None
+        self._listen_task: Optional[Task] = None
 
     async def __anext__(self) -> Tuple:
         if self._closed:
@@ -250,7 +254,7 @@ class EventBus(collections.abc.AsyncIterator, ABC):
         self._listen_task = self._loop.create_task(self._event_listener())
 
     @abstractmethod
-    def _encode(self, aggregate_id: str, event: Event) -> Any:
+    def _encode(self, aggregate_id: str, event: Event) -> str:
         """Encode an aggregate ID and an event into a message.
 
         The message format must be supported by the bus queue.
@@ -264,7 +268,7 @@ class EventBus(collections.abc.AsyncIterator, ABC):
         pass
 
     @abstractmethod
-    def _decode(self, message: Any) -> tuple:
+    def _decode(self, message: str) -> tuple:
         """Decode a queue message into a tuple of (aggregate ID, event).
 
         Args:
@@ -286,7 +290,7 @@ class JsonEventBus(EventBus):
         super().__init__(**kwargs)
         self.json = serializer
 
-    def _encode(self, aggregate_id: str, event: Event) -> Any:
+    def _encode(self, aggregate_id: str, event: Event) -> str:
         """Encode an aggregate ID and an event into a JSON message for the bus.
 
         Args:

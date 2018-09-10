@@ -6,7 +6,7 @@ import inspect
 import logging
 
 from abc import ABC, abstractmethod
-from typing import Any, Awaitable, Callable, Dict
+from typing import Awaitable, Callable, Dict, Optional
 from typing_extensions import Protocol
 
 from aioevsourcing import events
@@ -21,11 +21,15 @@ class Reactor(Protocol):
     with the protocol.
     """
 
-    key: str = None
+    @property
+    @abstractmethod
+    def key(self) -> str:
+        """The event topic used for configuration and bus operations"""
+        pass
 
     @abstractmethod
     async def __call__(
-        self, aggregate_id: str, event: events.Event, context: Any
+        self, aggregate_id: str, event: events.Event, context: Dict
     ) -> Awaitable:
         pass
 
@@ -67,7 +71,7 @@ class SelfRegisteringReactor(Reactor, ABC):
 
 
 def reactor(
-    registry: ReactorRegistry = None, key: str = None
+    registry: Optional[ReactorRegistry] = None, key: Optional[str] = None
 ) -> Callable[[Reactor], Reactor]:
     """Decorate a function to and define a registry and a key to register it"""
 

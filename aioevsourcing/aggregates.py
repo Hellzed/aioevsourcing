@@ -3,13 +3,12 @@
 Provides a base aggregate class for an event sourcing application,
 as well as a base repository class to handle saving/loading aggregates.
 """
-import collections
 import logging
 import uuid
 
 from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
-from typing import Dict, List, Tuple, Type
+from typing import AsyncIterator, Dict, List, Optional, Tuple, Type
 
 from aioevsourcing import commands, events
 
@@ -68,8 +67,8 @@ class Aggregate(ABC):
         for event in event_stream.events:
             self.apply(event)
 
-        self._saved = True
-        self._changes: List = []
+        self._saved: bool = True
+        self._changes: List[events.Event] = []
 
     def __del__(self) -> None:
         if not self._saved:
@@ -211,7 +210,9 @@ class AggregateRepository(ABC):
     """
 
     def __init__(
-        self, event_store: events.EventStore, event_bus: events.EventBus = None
+        self,
+        event_store: events.EventStore,
+        event_bus: Optional[events.EventBus] = None,
     ) -> None:
         self.event_store = event_store
         self.event_bus = event_bus
@@ -274,7 +275,7 @@ class AggregateRepository(ABC):
         if mark_saved:
             aggregate.mark_saved()
 
-    def open_transaction(self, aggregate_id: str) -> str:
+    def open_transaction(self, aggregate_id: Optional[str]) -> str:
         """Open a transaction on the repository, registered for an aggregate ID.
 
         Args:
@@ -325,8 +326,8 @@ class AggregateRepository(ABC):
 
 @asynccontextmanager
 async def execute_transaction(
-    repository: AggregateRepository, global_id: str = None
-) -> collections.abc.AsyncGenerator:
+    repository: AggregateRepository, global_id: Optional[str] = None
+) -> AsyncIterator:
     """An asynchronous context manager to use a repository.
 
     Takes a repository, yields an aggregate.
