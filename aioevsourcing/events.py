@@ -146,15 +146,15 @@ class EventBus(collections.abc.AsyncIterator, ABC):
     def __init__(
         self,
         registry: EventRegistry,
-        queue: asyncio.Queue = asyncio.Queue(),
+        queue: Optional[asyncio.Queue] = None,
         context: Optional[Dict] = None,
-        loop: asyncio.AbstractEventLoop = asyncio.get_event_loop(),
+        loop: Optional[asyncio.AbstractEventLoop] = None,
     ) -> None:
-        self._queue = queue
+        self._queue = asyncio.Queue() if queue is None else queue
         self._registry = registry
         self._subscriptions: Dict[str, Set[Callable]] = {}
         self._context = context
-        self._loop = loop
+        self._loop = asyncio.get_event_loop() if loop is None else loop
         self._closed = True
         self._listen_task: Optional[Task] = None
 
