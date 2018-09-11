@@ -6,13 +6,10 @@ TODO: Safer initialisation with robust initial event mechanism (to define ID and
 
 ## Defining the domain
 
-The application domain is a collection of units of work called *aggregates*, each exposing relevant data as a set of fields.
-
-An aggregate's current state is obtained by replaying the full chronology of *events* that ever affected it.
-
-An aggregate can and should only be mutated by appending new events after the latest one in the chronology.
-
-*Commands* are actions that mutate aggregates by issuing new events.
+The application domain is a collection of units of work called **aggregates**, each exposing relevant data as a set of fields.  
+An aggregate's current state is obtained by replaying the full chronology of **events** that ever affected it.  
+An aggregate can and should only be mutated by appending new events after the latest one in the chronology.  
+**Commands** are actions that mutate aggregates by issuing new events.
 
 ### Aggregates
 
@@ -40,7 +37,7 @@ Events represent an aggregate's state changes. They are responsible for applying
 
 They should be defined as immutable.
 
-*Do not mutate events. Do not reuse instanciated events.*
+**_Do not mutate events. Do not reuse instanciated events._**
 
 Event definition example, also using Python 3.7+ dataclass:
 ```python
@@ -113,7 +110,7 @@ aircraft.execute(takeoff)
 aircraft.execute(land, "Paris CDG")
 # Aircraft(airport='Paris CDG', flying=False)
 ```
-The `execute` method is not asynchronous. This an opinioned framework: commands are meant to be issued in a sequence, just like events are meant to be applied.  
+The `execute` method *is not asynchronous*. This an opinioned framework: commands are meant to be issued in a sequence, just like events are meant to be applied.  
 None blocking calls would introduce an unwanted complexity in managing aggregate state transitions.
 
 ## Aggregate persistence
