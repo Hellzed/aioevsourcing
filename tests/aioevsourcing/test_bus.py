@@ -2,7 +2,7 @@ import asyncio
 from asynctest import CoroutineMock
 
 from abc import ABC
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 import pytest
 
@@ -31,13 +31,14 @@ def dummy_queue():
 
 @pytest.fixture
 def dummy_bus(dummy_queue):
-    return events.JsonEventBus(
+    bus = events.JsonEventBus(
         registry=dummy_bus_event_registry, queue=dummy_queue
     )
+    return bus
 
 
 @pytest.mark.asyncio
 async def test_bus_publish(dummy_bus, dummy_queue):
-    aggregate_id = "anonymous"
-    await dummy_bus.publish(aggregate_id, DummyBusEvent())
-    assert dummy_queue.put.assert_called
+    aggregate_id, dummy_event = "anonymous", DummyBusEvent()
+    await dummy_bus.publish(aggregate_id, dummy_event)
+    dummy_queue.put.assert_called_once()
