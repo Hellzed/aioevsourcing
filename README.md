@@ -1,11 +1,22 @@
-Event sourcing framework for asyncio
+Event sourcing framework for asyncio.
 
 # Getting Started
 
-The application domain is described through aggregates and events.
-Commands are actions that mutate the domain.
+## Defining the domain
 
-An aggregate represents a unit of work as a set of fields, and is only mutated by applying compatible events.
+The application domain is a collection of units of work called aggregates, each exposing relevant data as a set of fields.
+
+An aggregate's current state is obtained by replaying the full chronology of events that affected it in its lifetime.
+
+An aggregate can and should only be mutated by appending new events after the latest one in the chronology.
+
+Commands are actions that mutate aggregates by issuing new events.
+
+### Aggregates
+
+An aggregate is the unit on which work is done.
+
+Aggregate definition example, using Python 3.7+ dataclass:
 ```python
 from dataclasses import dataclass
 from aioevsourcing import aggregates
@@ -21,12 +32,17 @@ class Aircraft(aggregates.Aggregate):
     airport: str
 ```
 
-Events represent mutations of an aggregate.
+### Events
+
+Events represent an aggregate's state changes.
+
+Event definition example, also using Python 3.7+ dataclass:
 ```python
+from abc import ABC
 from dataclasses import dataclass
 from aioevsourcing import events
 
-# Create a base event type
+# Create a base event type as an Abstract Base Class
 class FlightEvent(events.SelfRegisteringEvent, ABC):
   # Add fields
   flying: bool
@@ -57,11 +73,15 @@ class Landed(FlightEvent):
         aircraft.airport = self.airport
 ```
 
+### Commands
+
 Use commands to issue new events. A command always returns a single event at a time.
-*Do not reuse instanciated events.*
+
+*Do not mutate events. Do not reuse instanciated events.*
+
+Commands example:
 ```python
 # Plain functions are enough in most cases.
-# A command always return
 # Commands always take at least one argument: the aggregate
 def takeoff(aircraft):
     return TakenOff()
