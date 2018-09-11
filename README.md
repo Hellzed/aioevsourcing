@@ -6,7 +6,12 @@ TODO: Safer initialisation with robust initial event mechanism (to define ID and
 
 ## Defining the domain
 
+**_What is our data model?_**
+
 The application domain is a collection of units of work called **aggregates**, each exposing relevant data as a set of fields.  
+
+**_How do operate on that data?_**
+
 An aggregate's current state is obtained by replaying the full chronology of **events** that ever affected it.  
 An aggregate can and should only be mutated by appending new events after the latest one in the chronology.  
 **Commands** are actions that mutate aggregates by issuing new events.
