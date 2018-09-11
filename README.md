@@ -2,19 +2,13 @@ Event sourcing framework for asyncio
 
 # Getting Started
 
-Domain is described with aggregates and events.
+The application domain is described through aggregates and events.
+Commands are actions that mutate the domain.
+
+An aggregate represents a unit of work as a set of fields, and is only mutated by applying compatible events.
 ```python
 from dataclasses import dataclass
-from aioevsourcing import aggregates, events
-
-# Create a base event type
-class FlightEvent(events.SelfRegisteringEvent, ABC):
-  # Add fields
-  flying: bool
-
-  # Define an apply method shared by all events
-  def apply_to(self, aircraft):
-      aircraft.flying = self.flying
+from aioevsourcing import aggregates
 
 # Create an aggregate
 @dataclass(init=False)
@@ -25,8 +19,23 @@ class Aircraft(aggregates.Aggregate):
     # Add fields
     flying: bool
     airport: str
+```
 
-# Add some events:
+Events represent mutations of an aggregate.
+```python
+from dataclasses import dataclass
+from aioevsourcing import events
+
+# Create a base event type
+class FlightEvent(events.SelfRegisteringEvent, ABC):
+  # Add fields
+  flying: bool
+
+  # Define an apply method shared by all events
+  def apply_to(self, aircraft):
+      aircraft.flying = self.flying
+
+# Add some relevant events:
 @dataclass(frozen=True)
 class TakenOff(FlightEvent):
     topic = "aircraft.taken_off"
@@ -48,7 +57,7 @@ class Landed(FlightEvent):
         aircraft.airport = self.airport
 ```
 
-Use commands to return new events. A command always returns a single command at a time.
+Use commands to issue new events. A command always returns a single event at a time.
 *Do not reuse instanciated events.*
 ```python
 # Plain functions are enough in most cases.
