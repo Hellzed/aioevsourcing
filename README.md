@@ -20,7 +20,7 @@ An aggregate must only ever be mutated by appending new events after the latest 
 
 An aggregate is the unit on which work is done, exposing data fields. It accepts compatible events.
 
-Aggregate definition example, using Python 3.7+ dataclass:
+_Aggregate definition example, using Python 3.7+ dataclass:_
 ```python
 from dataclasses import dataclass
 from aioevsourcing import aggregates
@@ -44,7 +44,7 @@ They should be defined as immutable.
 
 **_Do not mutate events. Do not reuse instanciated events._**
 
-Event definition example, also using Python 3.7+ dataclass:
+_Event definition example, also using Python 3.7+ dataclass:_
 ```python
 from abc import ABC
 from dataclasses import dataclass
@@ -88,7 +88,7 @@ Use commands to issue new events. A command always returns a single event at a t
 
 Commands may use the aggregate's state along arguments for synchronous operations (ie. validation, logging, dynamically change event types, raising errors...).
 
-Commands example:
+_Commands example:_
 ```python
 # Plain functions are enough in most cases.
 # Commands always take at least one argument: the aggregate.
@@ -126,7 +126,7 @@ Using a repository is a convenient way to save and load aggregates.
 
 A repository needs an event store for streams of event affecting aggregates.
 
-Defining and initialising a repository is simple:
+_Defining and initialising a repository is simple:_
 ```python
 from aioevsourcing import aggregates, events
 
@@ -141,14 +141,14 @@ Saving and loading through the repository are non-blocking operations.
 
 ### Loading
 
-Only an ID is needed to load an aggregate:
+Only an ID is needed to load an aggregate. _Example:_
 ```python
 aircraft = await aircrafts.load("DM2018")
 ```
 
 ### Saving
 
-Saving is straightforward:
+Saving is straightforward. _Example:_
 ```python
 await aircrafts.save(aircraft)
 ```
@@ -161,6 +161,7 @@ Transactions, context managers with the function `execute_transaction` will load
 
 If a transaction is interrupted (a typical case being an application forced shutdown during a long operation), a warning will be issued.
 
+_Thanks to Python 3.7+, these are async context mangers:_
 ```python
 # Create a new aggregate by only passing the repository as argument to the
 # 'execute_transaction' call.
