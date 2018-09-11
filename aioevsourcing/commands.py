@@ -2,27 +2,13 @@
 
 Provides base command and error classes for an event sourcing application.
 """
-from abc import abstractmethod
-from typing import Any
-from typing_extensions import Protocol
+from typing import Callable, TypeVar
 
 from aioevsourcing import events
 
-
-class Command(Protocol):
-    """Command protocol.
-
-    Subclass to create your own command, or just provide an object compatible
-    with the protocol.
-    """
-
-    __name__: str = "anonymous_command"
-
-    @abstractmethod
-    def __call__(
-        self, aggregate: object, *args: Any, **kwargs: Any
-    ) -> events.Event:
-        pass
+CmdArgs = TypeVar("CmdArgs")
+CmdKwargs = TypeVar("CmdKwargs")
+Command = Callable[[object, CmdArgs, CmdKwargs], events.Event]
 
 
 class CommandRuntimetError(RuntimeError):

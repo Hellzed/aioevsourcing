@@ -10,7 +10,7 @@ import warnings
 
 from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator, Dict, List, Optional, Tuple, Type
+from typing import AsyncIterator, Dict, List, Optional, Tuple, Type
 
 from aioevsourcing import commands, events
 
@@ -129,7 +129,10 @@ class Aggregate(ABC):
             logger.error("Event '%r' must implement an 'apply' method.", event)
 
     def execute(
-        self, command: commands.Command, *args: Any, **kwargs: Any
+        self,
+        command: commands.Command,
+        *args: commands.CmdArgs,
+        **kwargs: commands.CmdKwargs,
     ) -> None:
         """Call a command to mutate the aggregate.
 
