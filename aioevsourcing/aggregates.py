@@ -270,7 +270,7 @@ class AggregateRepository(ABC):
                 "Nothing to save in repository '{}' for aggregate '{}', "
                 "consider using '<repo>.load(aggregate_id)' directly for "
                 "read-only access, and avoid saving the same aggregate twice.\n"
-                "Note: 'execute_transaction()' auo-saves".format(
+                "Note: 'execute_transaction()' auto-saves".format(
                     type(self), aggregate
                 ),
                 SyntaxWarning,
