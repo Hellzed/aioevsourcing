@@ -373,3 +373,37 @@ class EventStore(ABC):
                 stream.
         """
         pass
+
+
+class DictEventStore(EventStore):
+    """A concrete event store class, using a dict as event storage.
+
+    Args:
+        db (Dict): .
+    """
+    def __init__(
+        self, db: Optional[Dict[str, List[Event]]] = None
+    ) -> None:
+        self._db = {} if db is None else db
+
+    async def load_stream(self, global_id: str) -> EventStream:
+        events = self._db.get(global_id, [])
+        # if not events:
+        #     raise DataNotFoundError
+        return EventStream(version=len(events), events=events)
+
+    async def append_to_stream(
+        self,
+        global_id: str,
+        events: List[Event],
+        expect_version: Optional[int] = None,
+    ) -> None:
+        if not self._db.get(global_id):
+            self._db[global_id] = events
+        else:
+            if (
+                expect_version is not None
+                and len(self._db[global_id]) is not expect_version
+            ):
+                raise ConcurrentStreamWriteError
+            self._db[global_id].extend(events)

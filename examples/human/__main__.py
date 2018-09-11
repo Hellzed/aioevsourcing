@@ -17,7 +17,7 @@ from aioevsourcing.aggregates import (
 from aioevsourcing.events import (
     ConcurrentStreamWriteError,
     Event,
-    EventStore,
+    DictEventStore,
     EventStream,
     JsonEventBus,
     SelfRegisteringEvent,
@@ -74,30 +74,6 @@ class HumanRepository(AggregateRepository):
     aggregate = Human
 
 
-class DummyEventStore(EventStore):
-    async def load_stream(self, aggregate_id) -> EventStream:
-        events = db.get(aggregate_id, [])
-        # if not events:
-        #     raise DataNotFoundError
-        return EventStream(version=len(events), events=events)
-
-    async def append_to_stream(
-        self,
-        aggregate_id,
-        events: List[Event],
-        expect_version: Optional[int] = None,
-    ) -> None:
-        if not db.get(aggregate_id):
-            db[aggregate_id] = events
-        else:
-            if (
-                expect_version is not None
-                and len(db[aggregate_id]) is not expect_version
-            ):
-                raise ConcurrentStreamWriteError
-            db[aggregate_id].extend(events)
-
-
 async def close(_listen_task):
 
     _listen_task.cancel()
@@ -143,7 +119,7 @@ if __name__ == "__main__":
         except KeyError:
             logger.warning("No reactor found for config key '%s'!", key)
 
-    human_repo = HumanRepository(DummyEventStore(), event_bus=human_bus)
+    human_repo = HumanRepository(DictEventStore(), event_bus=human_bus)
     human_bus.listen()
 
     loop.run_until_complete(business())
