@@ -13,7 +13,7 @@ The application domain is a collection of units of work called **aggregates**, e
 **_How do operate on that data?_**
 
 An aggregate's current state is obtained by replaying the full chronology of **events** that ever affected it.  
-An aggregate can and should only be mutated by appending new events after the latest one in the chronology.  
+An aggregate must only ever be mutated by appending new events after the latest one in the chronology.  
 **Commands** are actions that mutate aggregates by issuing new events.
 
 ### Aggregates
