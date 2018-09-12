@@ -6,6 +6,7 @@ Event sourcing framework for [asyncio](https://docs.python.org/3/library/asyncio
 - [ ] Test repository, event bus, event store
 - [ ] Document how to extend the framework (asyncio.Queue compatible queue, message encoder, subclass event store for different backends)
 
+
 # Table of contents
 
 - [Getting Started](#getting-started)
@@ -22,6 +23,7 @@ Event sourcing framework for [asyncio](https://docs.python.org/3/library/asyncio
     - [The event bus](#the-event-bus)
     - [Reactors](#reactors)
     - [Event Bus Lifecycle](#event-bus-lifecycle)
+
 
 # Getting Started
 
