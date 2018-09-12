@@ -141,8 +141,17 @@ aircraft.execute(takeoff)
 aircraft.execute(land, "Paris CDG")
 # Aircraft(airport='Paris CDG', flying=False)
 ```
-The `execute` method *is not asynchronous*. This is an opinioned framework: commands are meant to be issued in a sequence, just like events are meant to be applied.  
+The `execute` method *is not asynchronous*. This is an opinionated framework: commands are meant to be issued in a sequence, just like events are meant to be applied.  
 Non-blocking calls would introduce an unwanted complexity in managing aggregate state transitions.
+
+An aggregate mutated with the `execute` method (on command success) now contains _changes_, events that happened since it was loaded.
+```python
+aircraft.changes
+# [TakenOff(flying=True), Landed(flying=False, airport="Paris CDG")]
+aircraft.saved
+# False
+```
+**_How do we persist these changes?_**
 
 ## Aggregate persistence
 
@@ -221,7 +230,7 @@ Reactors can then run any kind of asynchronous code, including new transactions.
 
 _Back to the repository initialisation, in the following example an event bus is added:_
 ```python
-# A simple bus
+# A simple bus, notice the base event we use provides the registry of known events
 air_traffic_bus = events.JsonEventBus(registry=FlightEvent.registry)
 # TODO: An api more like:
 air_traffic_bus = events.EventBus(
@@ -233,6 +242,8 @@ aircrafts = AircraftRepository(
     event_bus=air_traffic_bus
 )
 ```
+>**Note:** Any compatible event registry can be used.
+
 At this point, events are published to the bus, but not listened to.
 
 ### Reactors
@@ -280,3 +291,5 @@ A "closed" bus will only stop dispatching queued events to reactors.
 This method is called `close` for two reasons:  
 - compatibility with the shutdown convention of registered clients in asyncio/aiohttp applications;
 - it has a cusomisable timeout, during which it offers some relative guarantee that current running reactors are shielded from task cancellation by asyncio, making it suitable for a clean shutdown of the application.
+
+Here is the full code of the [flights example](examples/flight).
