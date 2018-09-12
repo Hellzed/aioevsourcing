@@ -292,4 +292,4 @@ This method is called `close` for two reasons:
 - compatibility with the shutdown convention of registered clients in asyncio/aiohttp applications;
 - it has a cusomisable timeout, during which it offers some relative guarantee that current running reactors are shielded from task cancellation by asyncio, making it suitable for a clean shutdown of the application.
 
-Here is the full code of the [flights example](examples/flight).
+Here is the full code of the [flights example](examples/flight/__main__.py).
