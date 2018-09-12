@@ -41,7 +41,7 @@ A **command** is an action that issues a new event applied to mutate an aggregat
 
 ### Aggregates
 
-An aggregate is the unit on which work is done, exposing data fields. It accepts compatible events. _Ovious aggregates are "User", "Ticket", "Aircraft"..._
+An aggregate is the unit on which work is done, exposing data fields. It accepts compatible events. _Obvious aggregates are "User", "Ticket", "Aircraft"..._
 
 _Aggregate definition example, using Python 3.7+ dataclass:_
 ```python
