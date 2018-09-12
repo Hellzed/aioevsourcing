@@ -195,13 +195,13 @@ _Thanks to Python 3.7+, these are async context mangers:_
 ```python
 # Create a new aggregate by only passing the repository as argument to the
 # 'execute_transaction' call.
-async with execute_transaction(aircrafts) as aircraft:
+async with aggregates.execute_transaction(aircrafts) as aircraft:
       aircraft.execute(takeoff)
 # Our aircraft is in the air, and saved.
 
 # Load an aggregate by passing repository as first argument and ID as second
 # argument to the 'execute_transaction' call.
-async with execute_transaction(aircrafts) as aircraft:
+async with aggregates.execute_transaction(aircrafts) as aircraft:
       aircraft.execute(land, "Amsterdam Schiphol")
 # Our aircraft landed and is saved.
 ```
