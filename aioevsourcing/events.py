@@ -381,9 +381,8 @@ class DictEventStore(EventStore):
     Args:
         db (Dict): .
     """
-    def __init__(
-        self, db: Optional[Dict[str, List[Event]]] = None
-    ) -> None:
+
+    def __init__(self, db: Optional[Dict[str, List[Event]]] = None) -> None:
         self._db = {} if db is None else db
 
     async def load_stream(self, global_id: str) -> EventStream:
