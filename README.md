@@ -7,7 +7,7 @@ Event sourcing framework for [asyncio](https://docs.python.org/3/library/asyncio
 - [ ] Document how to extend the framework (asyncio.Queue compatible queue, message encoder, subclass event store for different backends)
 
 
-# Table of contents
+# Table of contents
 
 - [Getting Started](#getting-started)
   - [Defining the Domain](#defining-the-domain)
