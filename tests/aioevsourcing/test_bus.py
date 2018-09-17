@@ -31,9 +31,7 @@ def dummy_queue():
 
 @pytest.fixture
 def dummy_bus(dummy_queue):
-    bus = events.JsonEventBus(
-        registry=dummy_bus_event_registry, queue=dummy_queue
-    )
+    bus = events.EventBus(registry=dummy_bus_event_registry, queue=dummy_queue)
     return bus
 
 
