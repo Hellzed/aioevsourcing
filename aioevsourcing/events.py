@@ -25,7 +25,18 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 # pylint: enable=wrong-import-order
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
+from typing import (
+    Callable,
+    Dict,
+    Generic,
+    List,
+    Optional,
+    Set,
+    Tuple,
+    Type,
+    TypeVar,
+    Union,
+)
 from typing_extensions import Protocol, runtime
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
@@ -132,13 +143,16 @@ class Message:
     event: Event
 
 
+QueueItem = TypeVar("QueueItem")
+
+
 @runtime
-class MessageCodec(Protocol):
+class MessageCodec(Generic[QueueItem], Protocol):
     """The message codec protocol, for encoding and decoding bus messages."""
 
     @staticmethod
     @abstractmethod
-    def encode(message: Message) -> Any:
+    def encode(message: Message) -> QueueItem:
         """Encode a message into a queue item data.
 
         The data format must be supported by the bus queue.
@@ -152,7 +166,7 @@ class MessageCodec(Protocol):
 
     @staticmethod
     @abstractmethod
-    def decode(item: Any) -> Message:
+    def decode(item: QueueItem) -> Message:
         """Decode a queue item into a message.
 
         Args:
