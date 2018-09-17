@@ -94,10 +94,11 @@ async def reactor0(*_):
 async def reactor1(aggregate_id, *_):
     print("enter r1")
     # do aync stuff that does not require the aggregate here
-    h1 = await human_repo.load(aggregate_id)
+    #h1 = await human_repo.load(aggregate_id)
     # do async stuff that requires the aggregate here
-    await sleep(2)
-    print("Retrieved name:", h1.name)
+    async with execute_transaction(human_repo, aggregate_id) as h3:
+        await sleep(12)
+        print("Retrieved name:", h3.name)
 
 
 async def business():
@@ -127,6 +128,6 @@ if __name__ == "__main__":
     #
     loop.run_until_complete(sleep(2))
 
-    loop.run_until_complete(human_bus.close(timeout=2))
+    human_bus.close(timeout=2)
     human_repo.close()
     # loop.run_until_complete(listen_task)

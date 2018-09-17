@@ -87,13 +87,12 @@ async def main(_aircrafts):
 
 
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-
     air_traffic_bus = events.JsonEventBus(registry=FlightEvent.registry)
     air_traffic_bus.subscribe(think_reactor, TakenOff.topic)
     aircrafts = AircraftRepository(
         events.DictEventStore(), event_bus=air_traffic_bus
     )
     air_traffic_bus.listen()
+    loop = asyncio.get_event_loop()
     loop.run_until_complete(main(aircrafts))
-    loop.run_until_complete(air_traffic_bus.close(timeout=0))
+    air_traffic_bus.close(timeout=5)

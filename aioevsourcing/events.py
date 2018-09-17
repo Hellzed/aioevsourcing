@@ -125,6 +125,29 @@ class SelfRegisteringEvent(Event, ABC):
                 cls.registry[cls.topic] = cls  # type: ignore
 
 
+@runtime
+class MessageEncoder(Protocol):
+    @staticmethod
+    @abstractmethod
+    def encode(message):
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def dcode(item):
+        pass
+
+
+class PassthroughEncoder(MessageEncoder):
+    @staticmethod
+    def encode(message):
+        return message
+
+    @staticmethod
+    def decode(item):
+        return item
+
+
 class EventBus(collections.abc.AsyncIterator, ABC):
     """Event bus abstract base class.
 
@@ -148,15 +171,16 @@ class EventBus(collections.abc.AsyncIterator, ABC):
     def __init__(
         self,
         registry: EventRegistry,
+        encoder: Type[MessageEncoder] = PassthroughEncoder,
         queue: Optional[asyncio.Queue] = None,
-        context: Optional[Dict] = None,
-        loop: Optional[asyncio.AbstractEventLoop] = None,
+        context: Optional[Dict] = None
     ) -> None:
         self._queue = asyncio.Queue() if queue is None else queue
         self._registry = registry
+        self._encoder = encoder
         self._subscriptions: Dict[str, Set[Callable]] = {}
         self._context = context
-        self._loop = asyncio.get_event_loop() if loop is None else loop
+        self._loop = asyncio.get_event_loop()
         self._closed = True
         self._listen_task: Optional[Task] = None
 
@@ -166,7 +190,7 @@ class EventBus(collections.abc.AsyncIterator, ABC):
         message = await self._queue.get()
         return self._decode(message)
 
-    async def close(self, timeout: int = 30) -> None:
+    def close(self, timeout: int = 30) -> None:
         """Close the event bus.
 
         The event bus won't get new events from the queue.
@@ -181,8 +205,8 @@ class EventBus(collections.abc.AsyncIterator, ABC):
         self._closed = True
         if self._listen_task is not None:
             self._listen_task.cancel()
-            await asyncio.sleep(timeout)
-            await self._listen_task
+            self._loop.run_until_complete(asyncio.sleep(timeout))
+            self._loop.run_until_complete(self._listen_task)
 
     def subscribe(self, reactor: Callable, *topics: str) -> None:
         """Subscribe a reactor to a topic.
@@ -222,11 +246,10 @@ class EventBus(collections.abc.AsyncIterator, ABC):
             aggregate_id (str): An aggregate ID.
             event (Event): An event.
         """
-        subscriptions = self._subscriptions.get(event.topic, [])
         asyncio.gather(
             *[
                 reactor(aggregate_id, event, self._context)
-                for reactor in subscriptions
+                for reactor in self._subscriptions.get(event.topic, [])
             ]
         )
         # self.acknowledge(event) to remove it from the retry mechanism of a
@@ -253,6 +276,7 @@ class EventBus(collections.abc.AsyncIterator, ABC):
         """Shorthand to listen to the bus for events, dispatch them to reactors.
         """
         self._closed = False
+        # should prevent running the listener twice
         self._listen_task = self._loop.create_task(self._event_listener())
 
     @abstractmethod
