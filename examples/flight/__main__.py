@@ -87,7 +87,7 @@ async def main(_aircrafts):
 
 
 if __name__ == "__main__":
-    air_traffic_bus = events.JsonEventBus(registry=FlightEvent.registry)
+    air_traffic_bus = events.EventBus(registry=FlightEvent.registry)
     air_traffic_bus.subscribe(think_reactor, TakenOff.topic)
     aircrafts = AircraftRepository(
         events.DictEventStore(), event_bus=air_traffic_bus

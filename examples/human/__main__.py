@@ -19,7 +19,7 @@ from aioevsourcing.events import (
     Event,
     DictEventStore,
     EventStream,
-    JsonEventBus,
+    EventBus,
     SelfRegisteringEvent,
 )
 from aioevsourcing.reactors import reactor, ReactorRegistry
@@ -94,7 +94,7 @@ async def reactor0(*_):
 async def reactor1(aggregate_id, *_):
     print("enter r1")
     # do aync stuff that does not require the aggregate here
-    #h1 = await human_repo.load(aggregate_id)
+    # h1 = await human_repo.load(aggregate_id)
     # do async stuff that requires the aggregate here
     async with execute_transaction(human_repo, aggregate_id) as h3:
         await sleep(12)
@@ -113,7 +113,7 @@ if __name__ == "__main__":
     loop = get_event_loop()
     config = {"say.hello": ["human.born"], "say.hello2": ["human.born"]}
 
-    human_bus = JsonEventBus(registry=HumanEvent.registry)
+    human_bus = EventBus(registry=HumanEvent.registry)
     for key in config:
         try:
             human_bus.subscribe(reactors[key], *config[key])

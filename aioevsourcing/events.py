@@ -16,17 +16,16 @@ from asyncio import Task
 
 import collections
 import inspect
-import json
 import logging
 
 from abc import ABC, abstractmethod
 
 # dataclasses is a standard module in Python 3.7. Pylint doesn't know this.
 # pylint: disable=wrong-import-order
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 
 # pylint: enable=wrong-import-order
-from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Type
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple, Type, Union
 from typing_extensions import Protocol, runtime
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
@@ -125,30 +124,58 @@ class SelfRegisteringEvent(Event, ABC):
                 cls.registry[cls.topic] = cls  # type: ignore
 
 
+@dataclass
+class Message:
+    """Event bus message format."""
+
+    aggregate_id: str
+    event: Event
+
+
 @runtime
-class MessageEncoder(Protocol):
+class MessageCodec(Protocol):
+    """The message codec protocol, for encoding and decoding bus messages."""
+
     @staticmethod
     @abstractmethod
-    def encode(message):
+    def encode(message: Message) -> Any:
+        """Encode a message into a queue item data.
+
+        The data format must be supported by the bus queue.
+
+        Args:
+            message (Message): A message.
+        Returns:
+            data of any queue-supported type
+        """
         pass
 
     @staticmethod
     @abstractmethod
-    def dcode(item):
+    def decode(item: Any) -> Message:
+        """Decode a queue item into a message.
+
+        Args:
+            data (Any): data from a queue item
+        Returns:
+            Message
+        """
         pass
 
 
-class PassthroughEncoder(MessageEncoder):
+class Passthrough(MessageCodec):
+    """A passthrough codec, for cases when the queue supports python objects."""
+
     @staticmethod
-    def encode(message):
+    def encode(message: Message) -> Message:
         return message
 
     @staticmethod
-    def decode(item):
+    def decode(item: Message) -> Message:
         return item
 
 
-class EventBus(collections.abc.AsyncIterator, ABC):
+class EventBus(collections.abc.AsyncIterator):
     """Event bus abstract base class.
 
     Subclass to create your own event bus.
@@ -171,24 +198,23 @@ class EventBus(collections.abc.AsyncIterator, ABC):
     def __init__(
         self,
         registry: EventRegistry,
-        encoder: Type[MessageEncoder] = PassthroughEncoder,
+        codec: Union[Type[MessageCodec], MessageCodec] = Passthrough,
         queue: Optional[asyncio.Queue] = None,
-        context: Optional[Dict] = None
+        context: Optional[Dict] = None,
     ) -> None:
         self._queue = asyncio.Queue() if queue is None else queue
         self._registry = registry
-        self._encoder = encoder
+        self._codec = codec
         self._subscriptions: Dict[str, Set[Callable]] = {}
         self._context = context
-        self._loop = asyncio.get_event_loop()
-        self._closed = True
         self._listen_task: Optional[Task] = None
 
-    async def __anext__(self) -> Tuple:
-        if self._closed:
+    async def __anext__(self) -> Message:
+        if self._listen_task is None or self._listen_task.cancelled():
             raise StopAsyncIteration
-        message = await self._queue.get()
-        return self._decode(message)
+        data = await self._queue.get()
+        message = self._codec.decode(data)
+        return message
 
     def close(self, timeout: int = 30) -> None:
         """Close the event bus.
@@ -202,11 +228,11 @@ class EventBus(collections.abc.AsyncIterator, ABC):
         Args:
             timeout (int): Time after which this method returns.
         """
-        self._closed = True
         if self._listen_task is not None:
             self._listen_task.cancel()
-            self._loop.run_until_complete(asyncio.sleep(timeout))
-            self._loop.run_until_complete(self._listen_task)
+            loop = asyncio.get_event_loop()
+            loop.run_until_complete(asyncio.sleep(timeout))
+            loop.run_until_complete(self._listen_task)
 
     def subscribe(self, reactor: Callable, *topics: str) -> None:
         """Subscribe a reactor to a topic.
@@ -236,21 +262,22 @@ class EventBus(collections.abc.AsyncIterator, ABC):
             aggregate_id (str): An aggregate ID.
             event (Event): An event.
         """
-        message = self._encode(aggregate_id, event)
-        await self._queue.put(message)
+        message = Message(aggregate_id=aggregate_id, event=event)
+        data = self._codec.encode(message)
+        await self._queue.put(data)
 
-    async def react(self, aggregate_id: str, event: Event) -> None:
+    async def react(self, message: Message) -> None:
         """Run reactors with arguments (aggregate ID, event, context)
 
         Args:
             aggregate_id (str): An aggregate ID.
             event (Event): An event.
         """
+        aggregate_id, event = message.aggregate_id, message.event
+        subscriptions = self._subscriptions.get(event.topic, [])
+        ctx = self._context
         asyncio.gather(
-            *[
-                reactor(aggregate_id, event, self._context)
-                for reactor in self._subscriptions.get(event.topic, [])
-            ]
+            *[reactor(aggregate_id, event, ctx) for reactor in subscriptions]
         )
         # self.acknowledge(event) to remove it from the retry mechanism of a
         # safe queue like an LPOPRPUSH Redis queue
@@ -262,10 +289,10 @@ class EventBus(collections.abc.AsyncIterator, ABC):
         """
         logger.info("Listening for events...")
         try:
-            async for aggregate_id, event in self:
-                logger.debug("Bus message: %s, %r", aggregate_id, event)
+            async for message in self:
+                logger.debug("Bus message: %r", message)
                 # Shield reactors execution from listening task cancellation
-                await asyncio.shield(self.react(aggregate_id, event))
+                await asyncio.shield(self.react(message))
         except asyncio.CancelledError:
             logger.info(
                 "Stop listening. %s messages remaining.",
@@ -275,77 +302,9 @@ class EventBus(collections.abc.AsyncIterator, ABC):
     def listen(self) -> None:
         """Shorthand to listen to the bus for events, dispatch them to reactors.
         """
-        self._closed = False
         # should prevent running the listener twice
-        self._listen_task = self._loop.create_task(self._event_listener())
-
-    @abstractmethod
-    def _encode(self, aggregate_id: str, event: Event) -> str:
-        """Encode an aggregate ID and an event into a message.
-
-        The message format must be supported by the bus queue.
-
-        Args:
-            aggregate_id (str): An aggregate ID.
-            event (Event): An event.
-        Returns:
-            a message of any queue-supported type
-        """
-        pass
-
-    @abstractmethod
-    def _decode(self, message: str) -> tuple:
-        """Decode a queue message into a tuple of (aggregate ID, event).
-
-        Args:
-            message (Any): a message from the queue
-        Returns:
-            Tuple[str, Event]
-        """
-        pass
-
-
-class JsonEventBus(EventBus):
-    """A concrete event bus class, using JSON encoded messages in the queue.
-
-    Args:
-        json: A JSON serializer.
-    """
-
-    def __init__(self, serializer=json, **kwargs: Any) -> None:  # type: ignore
-        super().__init__(**kwargs)
-        self.json = serializer
-
-    def _encode(self, aggregate_id: str, event: Event) -> str:
-        """Encode an aggregate ID and an event into a JSON message for the bus.
-
-        Args:
-            message (str): a message from the queue
-        Returns:
-            Tuple[str, Event]
-        """
-        return self.json.dumps(
-            {
-                "aggregate_id": aggregate_id,
-                "event": {"topic": event.topic, "data": asdict(event)},
-            }
-        )
-
-    def _decode(self, message: object) -> Tuple[str, Event]:
-        """Decode a JSON queue message into a tuple of (aggregate ID, event).
-
-        Args:
-            message (str): a message from the queue
-        Returns:
-            Tuple[str, Event]
-        """
-        data = self.json.loads(message)
-        return (
-            data["aggregate_id"],
-            self._registry[data["event"]["topic"]](  # type: ignore
-                **data["event"]["data"]
-            ),
-        )
+        loop = asyncio.get_event_loop()
+        self._listen_task = loop.create_task(self._event_listener())
 
 
 class ConcurrentStreamWriteError(RuntimeError):

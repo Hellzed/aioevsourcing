@@ -231,12 +231,7 @@ Reactors can then run any kind of asynchronous code, including new transactions.
 _Back to the repository initialisation, in the following example an event bus is added:_
 ```python
 # A simple bus, notice the base event we use provides the registry of known events
-air_traffic_bus = events.JsonEventBus(registry=FlightEvent.registry)
-# TODO: An api more like:
-air_traffic_bus = events.EventBus(
-    registry=FlightEvent.registry,
-    encoder=MessageEncoder
-)
+air_traffic_bus = events.EventBus(registry=FlightEvent.registry)
 aircrafts = AircraftRepository(
     events.DictEventStore(),
     event_bus=air_traffic_bus
