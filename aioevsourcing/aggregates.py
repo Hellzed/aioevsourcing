@@ -51,7 +51,7 @@ class Aggregate(ABC):
     ...     event_types = (events.Event,)
     """
 
-    global_id: str
+    global_id: str = "anonymous"
 
     def __init_subclass__(cls, *_: Tuple) -> None:
         if not isinstance(cls.event_types, tuple):
@@ -88,7 +88,7 @@ class Aggregate(ABC):
     def event_types(self) -> Tuple[Type[events.Event], ...]:
         """Tuple of supported Event types
         """
-        pass
+        raise NotImplementedError
 
     @property
     def version(self) -> int:
@@ -127,6 +127,7 @@ class Aggregate(ABC):
             event.apply_to(self)
         except (AttributeError, NotImplementedError):
             logger.error("Event '%r' must implement an 'apply' method.", event)
+            raise
 
     def execute(
         self,
@@ -239,7 +240,7 @@ class Repository(ABC):
     def aggregate(self) -> Type[Aggregate]:
         """The aggregate type to load/save from this repository.
         """
-        pass
+        raise NotImplementedError
 
     async def load(self, global_id: str) -> Aggregate:
         """Load an aggregate by ID.
@@ -264,22 +265,31 @@ class Repository(ABC):
         Args:
             aggregate (aggregates.Aggregate): The ID of the aggregate to save.
         """
-        if not aggregate.changes:
-            warnings.warn(
-                "Nothing to save in repository '{}' for aggregate '{}', "
-                "consider using '<repo>.load(aggregate_id)' directly for "
-                "read-only access, and avoid saving the same aggregate twice.\n"
-                "Note: 'execute_transaction()' auto-saves".format(
-                    type(self), aggregate
-                ),
-                SyntaxWarning,
+        try:
+            if not aggregate.changes:
+                warnings.warn(
+                    "Nothing to save in repository '{}' for aggregate '{}', "
+                    "consider using '<repo>.load(aggregate_id)' directly for "
+                    "read-only access, and avoid saving the same aggregate "
+                    "twice.\nNote: 'execute_transaction()' auto-saves".format(
+                        type(self), aggregate
+                    ),
+                    SyntaxWarning,
+                )
+                return
+            await self._event_store.append_to_stream(
+                aggregate.global_id,
+                aggregate.changes,
+                expect_version=aggregate.version,
+            )
+        except AttributeError:
+            logger.error(
+                "Cannot 'save' aggregate of type %s saved events to store %r "
+                "with missing fields!",
+                type(aggregate),
+                self._event_store,
             )
             return
-        await self._event_store.append_to_stream(
-            aggregate.global_id,
-            aggregate.changes,
-            expect_version=aggregate.version,
-        )
         if self._event_bus is not None:
             try:
                 for event in aggregate.changes:
@@ -291,6 +301,7 @@ class Repository(ABC):
                     aggregate,
                     self._event_bus,
                 )
+                return
         if mark_saved:
             aggregate.mark_saved()
 
@@ -364,7 +375,7 @@ async def execute_transaction(
             await repository.save(aggregate)
     except AttributeError:
         logger.error(
-            "Repository '%r' must implement have an 'aggregate' attribute and "
+            "Repository '%r' must implement an 'aggregate' attribute and "
             "define 'load' and 'save' methods. A repository type may be "
             "obtained by subclassing "
             "'aioeventsourcing.aggregates.Repository'.",
