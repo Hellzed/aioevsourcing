@@ -151,8 +151,7 @@ class Aggregate(ABC):
                 transaction script currently managing the aggregate.
         """
         try:
-            # Is mypy confused by the __call__ method in protocol?
-            event = command(self, *args, **kwargs)  # type: ignore
+            event = command(self, *args, **kwargs)
             if not isinstance(event, events.Event):
                 raise commands.MustReturnEventError(command)
             self.apply(event)

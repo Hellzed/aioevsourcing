@@ -8,7 +8,7 @@ from aioevsourcing import events
 
 CmdArgs = TypeVar("CmdArgs")
 CmdKwargs = TypeVar("CmdKwargs")
-Command = Callable[[object, CmdArgs, CmdKwargs], events.Event]
+Command = Callable[..., events.Event]
 
 
 class CommandRuntimetError(RuntimeError):
