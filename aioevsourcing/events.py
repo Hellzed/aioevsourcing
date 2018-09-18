@@ -66,7 +66,7 @@ class Event(Protocol):
     @abstractmethod
     def topic(self) -> str:
         """The event topic used for configuration and bus operations"""
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     def apply_to(self, aggregate: object) -> None:
@@ -79,7 +79,7 @@ class Event(Protocol):
             aggregate (object): The aggregate to which apply the
                 event.
         """
-        pass
+        raise NotImplementedError
 
 
 @dataclass
@@ -162,7 +162,7 @@ class MessageCodec(Generic[QueueItem], Protocol):
         Returns:
             data of any queue-supported type
         """
-        pass
+        raise NotImplementedError
 
     @staticmethod
     @abstractmethod
@@ -174,7 +174,7 @@ class MessageCodec(Generic[QueueItem], Protocol):
         Returns:
             Message
         """
-        pass
+        raise NotImplementedError
 
 
 class PassthroughCodec(MessageCodec):
@@ -351,7 +351,7 @@ class EventStore(ABC):
         Returns:
             EventStream
         """
-        pass
+        raise NotImplementedError
 
     @abstractmethod
     async def append_to_stream(
@@ -369,7 +369,7 @@ class EventStore(ABC):
                 This version must match for the events to be appended to the
                 stream.
         """
-        pass
+        raise NotImplementedError
 
 
 class DictEventStore(EventStore):
@@ -397,9 +397,12 @@ class DictEventStore(EventStore):
         if not self._db.get(global_id):
             self._db[global_id] = events
         else:
+            found_version = len(self._db[global_id])
             if (
                 expect_version is not None
-                and len(self._db[global_id]) is not expect_version
+                and found_version is not expect_version
             ):
-                raise ConcurrentStreamWriteError
+                raise ConcurrentStreamWriteError(
+                    global_id, expect_version, found_version
+                )
             self._db[global_id].extend(events)
