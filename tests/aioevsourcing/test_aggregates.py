@@ -35,6 +35,14 @@ def test_aggregate_init(aggregate):
     assert aggregate.event_types is DUMMY_TYPES
 
 
+def test_aggregate_init_fail_wrong_event_types(aggregate):
+    with pytest.raises(TypeError):
+
+        @dataclass(init=False)
+        class DummyAggregate_withWrongTypes(aggregates.Aggregate):
+            event_types = "Wrong types"
+
+
 def test_aggregate_init_empty(aggregate):
     assert aggregate.version is 0
     assert isinstance(aggregate.changes, list)
@@ -86,6 +94,16 @@ def test_aggregate_apply_fail_with_bad_event(aggregate):
     with pytest.raises(aggregates.EventNotSupportedError):
         aggregate.apply(BadEvent(value=prop_new_value))
     assert aggregate.dummy_prop is prop_old_value
+
+
+def test_aggregate_apply_fail_with_not_an_event():
+    @dataclass(init=False)
+    class DummyAggregate_withNotAnEventAllowed(aggregates.Aggregate):
+        event_types = (str,)
+
+    broken_aggregate = DummyAggregate_withNotAnEventAllowed()
+    with pytest.raises(AttributeError):
+        broken_aggregate.apply("Not an event")
 
 
 def test_aggregate_init_with_stream():
@@ -157,6 +175,20 @@ def test_aggregate_fail_execute_no_event(aggregate):
     aggregate.apply(DummyPropChanged(value=expected_value))
     with pytest.raises(commands.MustReturnEventError):
         aggregate.execute(bad_command_no_event)
+    assert len(aggregate.changes) is 0
+    assert aggregate.dummy_prop is expected_value
+    assert aggregate.saved is True
+
+
+def bad_command_raises(_):
+    raise RuntimeError
+
+
+def test_aggregate_fail_execute_raises(aggregate):
+    expected_value = "something"
+    aggregate.apply(DummyPropChanged(value=expected_value))
+    with pytest.raises(RuntimeError):
+        aggregate.execute(bad_command_raises)
     assert len(aggregate.changes) is 0
     assert aggregate.dummy_prop is expected_value
     assert aggregate.saved is True

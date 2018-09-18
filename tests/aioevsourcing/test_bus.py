@@ -95,3 +95,10 @@ async def test_bus_listen(dummy_bus, dummy_queue):
     dummy_bus.listen()
     dummy_bus._event_listener.assert_called_once()
     assert isinstance(dummy_bus._listen_task, asyncio.Task)
+
+
+def test_bus_close(dummy_bus):
+    loop = asyncio.get_event_loop()
+    dummy_bus.listen()
+    loop.run_until_complete(asyncio.sleep(0.1))
+    dummy_bus.close(timeout=0.1)

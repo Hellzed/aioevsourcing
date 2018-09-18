@@ -76,7 +76,6 @@ def dummy_command_b(_):
 def event_store():
     store = events.DictEventStore()
     store.append_to_stream = CoroutineMock()
-    store.load_stream = CoroutineMock()
     return store
 
 
@@ -108,7 +107,6 @@ def test_repository_init(repository):
 async def test_repository_save(
     dummy_aggregate, repository, event_store, event_bus
 ):
-
     await repository.save(dummy_aggregate)
     event_store.append_to_stream.assert_called_once_with(
         dummy_aggregate.global_id,
@@ -124,7 +122,56 @@ async def test_repository_save(
 
 @pytest.mark.asyncio
 async def test_repository_load(dummy_aggregate, repository, event_store):
-    aggregate_id = dummy_aggregate.global_id
+    changes, aggregate_id = dummy_aggregate.changes, dummy_aggregate.global_id
     await repository.save(dummy_aggregate)
+    event_store.load_stream = CoroutineMock(
+        return_value=events.EventStream(version=len(changes), events=changes)
+    )
     await repository.load(aggregate_id)
     event_store.load_stream.assert_called_once_with(aggregate_id)
+
+
+def test_repository_open_transaction(repository):
+    aggregate_id = "<aggregate_id>"
+    assert len(repository._active_transactions) is 0
+    transaction_id = repository.open_transaction(aggregate_id)
+    assert len(repository._active_transactions) is 1
+    assert repository._active_transactions[transaction_id] is aggregate_id
+
+
+def test_repository_close_transaction(repository):
+    aggregate_id = "<aggregate_id>"
+    transaction_id = repository.open_transaction(aggregate_id)
+    assert len(repository._active_transactions) is 1
+    repository.close_transaction(transaction_id)
+    assert len(repository._active_transactions) is 0
+
+
+@pytest.mark.asyncio
+async def test_execute_transaction_create_aggregate(repository):
+    repository.load = CoroutineMock()
+    repository.save = CoroutineMock()
+    async with aggregates.execute_transaction(repository) as aggregate:
+        repository.load.assert_not_called()
+        assert isinstance(aggregate, repository.aggregate)
+        assert len(repository._active_transactions) is 1
+        aggregate_id = str(uuid.uuid4())
+        aggregate.execute(dummy_command_set_id, aggregate_id)
+        aggregate.execute(dummy_command_a)
+    assert len(repository._active_transactions) is 0
+    repository.save.assert_called_once_with(aggregate)
+
+
+@pytest.mark.asyncio
+async def test_execute_transaction_create_aggregate(
+    dummy_aggregate, repository
+):
+    await repository.save(dummy_aggregate)
+    repository.save = CoroutineMock()
+    async with aggregates.execute_transaction(
+        repository, dummy_aggregate.global_id
+    ) as aggregate:
+        assert len(repository._active_transactions) is 1
+        aggregate.execute(dummy_command_b)
+    assert len(repository._active_transactions) is 0
+    repository.save.assert_called_with(aggregate)
