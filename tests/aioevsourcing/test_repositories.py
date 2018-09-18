@@ -163,7 +163,7 @@ async def test_execute_transaction_create_aggregate(repository):
 
 
 @pytest.mark.asyncio
-async def test_execute_transaction_create_aggregate(
+async def test_execute_transaction_load_aggregate(
     dummy_aggregate, repository
 ):
     await repository.save(dummy_aggregate)
