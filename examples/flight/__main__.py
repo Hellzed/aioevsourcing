@@ -18,7 +18,7 @@ class Aircraft(aggregates.Aggregate):
     airport: str = "<unknown>"
 
 
-class AircraftRepository(aggregates.AggregateRepository):
+class AircraftRepository(aggregates.Repository):
     aggregate = Aircraft
 
 

@@ -169,7 +169,7 @@ _Defining and initialising a repository is simple:_
 ```python
 from aioevsourcing import aggregates, events
 
-class AircraftRepository(aggregates.AggregateRepository):
+class AircraftRepository(aggregates.Repository):
     aggregate = Aircraft
 
 # The simplest event store you can get: it relies on a dict to store data

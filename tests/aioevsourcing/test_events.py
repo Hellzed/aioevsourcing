@@ -7,6 +7,8 @@ from aioevsourcing import events
 
 def test_event_type_self_registering():
     class BaseEvent(events.SelfRegisteringEvent, ABC):
+        registry = events.EventRegistry()
+
         def apply_to(self, _):
             pass
 

@@ -210,8 +210,8 @@ class BadEventStreamError(TypeError):
         )
 
 
-class AggregateRepository(ABC):
-    """AggregateRepository abstract base class.
+class Repository(ABC):
+    """Repository abstract base class.
 
     Subclass and add an `aggregate` class property to create your own
     repository.
@@ -230,8 +230,8 @@ class AggregateRepository(ABC):
         event_store: events.EventStore,
         event_bus: Optional[events.EventBus] = None,
     ) -> None:
-        self.event_store = event_store
-        self.event_bus = event_bus
+        self._event_store = event_store
+        self._event_bus = event_bus
         self._active_transactions: Dict[str, str] = {}
 
     @property
@@ -251,7 +251,7 @@ class AggregateRepository(ABC):
             Aggregate
         """
         # handle the AggregateNotFoundError case
-        event_stream = await self.event_store.load_stream(global_id)
+        event_stream = await self._event_store.load_stream(global_id)
         return self.aggregate(event_stream)
 
     async def save(
@@ -275,21 +275,21 @@ class AggregateRepository(ABC):
                 SyntaxWarning,
             )
             return
-        await self.event_store.append_to_stream(
+        await self._event_store.append_to_stream(
             aggregate.global_id,
             aggregate.changes,
             expect_version=aggregate.version,
         )
-        if self.event_bus is not None:
+        if self._event_bus is not None:
             try:
                 for event in aggregate.changes:
-                    await self.event_bus.publish(aggregate.global_id, event)
+                    await self._event_bus.publish(aggregate.global_id, event)
             except AttributeError:
                 logger.error(
                     "Cannot 'publish' aggregate %s saved events to bus %r. "
                     "No such method!",
                     aggregate,
-                    self.event_bus,
+                    self._event_bus,
                 )
         if mark_saved:
             aggregate.mark_saved()
@@ -345,7 +345,7 @@ class AggregateRepository(ABC):
 
 @asynccontextmanager
 async def execute_transaction(
-    repository: AggregateRepository, global_id: Optional[str] = None
+    repository: Repository, global_id: Optional[str] = None
 ) -> AsyncIterator[Aggregate]:
     """An asynchronous context manager to use a repository.
 
@@ -367,7 +367,7 @@ async def execute_transaction(
             "Repository '%r' must implement have an 'aggregate' attribute and "
             "define 'load' and 'save' methods. A repository type may be "
             "obtained by subclassing "
-            "'aioeventsourcing.aggregates.AggregateRepository'.",
+            "'aioeventsourcing.aggregates.Repository'.",
             repository,
         )
         raise

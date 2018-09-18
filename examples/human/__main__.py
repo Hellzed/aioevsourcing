@@ -9,11 +9,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import List, Optional
 
-from aioevsourcing.aggregates import (
-    Aggregate,
-    AggregateRepository,
-    execute_transaction,
-)
+from aioevsourcing.aggregates import Aggregate, Repository, execute_transaction
 from aioevsourcing.events import (
     ConcurrentStreamWriteError,
     Event,
@@ -70,7 +66,7 @@ def birth(_, name) -> Event:
     return Born(name=name, global_id=str(uuid.uuid4()))
 
 
-class HumanRepository(AggregateRepository):
+class HumanRepository(Repository):
     aggregate = Human
 
 

@@ -2,36 +2,15 @@
 
 Provides base command and error classes for an event sourcing application.
 """
-import inspect
 import logging
 
-from abc import ABC, abstractmethod
-from typing import Awaitable, Callable, Dict, Optional
-from typing_extensions import Protocol
+from typing import Callable, Dict, Optional
 
 from aioevsourcing import events
 
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
-
-class Reactor(Protocol):
-    """Reactor protocol.
-
-    Subclass to create your own reactor, or just provide an object compatible
-    with the protocol.
-    """
-
-    @property
-    @abstractmethod
-    def key(self) -> str:
-        """The event topic used for configuration and bus operations"""
-        pass
-
-    @abstractmethod
-    async def __call__(
-        self, aggregate_id: str, event: events.Event, context: Dict
-    ) -> Awaitable:
-        pass
+Reactor = Callable[[str, events.Event, Dict], None]
 
 
 class ReactorRegistry(Dict[str, Reactor]):
@@ -41,33 +20,6 @@ class ReactorRegistry(Dict[str, Reactor]):
     """
 
     pass
-
-
-class SelfRegisteringReactor(Reactor, ABC):
-    """Self-registering reactor abstract base class.
-
-    Subclass to create your own self-registering reactor.
-
-    Attributes:
-        registry (ReactorRegistry): A reactor registry. Defaults to an empty
-            reactor registry.
-    """
-
-    registry: ReactorRegistry = ReactorRegistry()
-
-    def __init_subclass__(cls, **_: Dict) -> None:
-        if not inspect.isabstract(cls):
-            # pylint: disable=unsupported-assignment-operation
-            if not cls.key:
-                logger.warning("No key set for reactor %r", cls)
-            elif not isinstance(cls.key, str):
-                raise TypeError(
-                    "{}: 'key' must be a 'str', not '{}'.".format(
-                        cls, type(cls.key).__name__
-                    )
-                )
-            else:
-                cls.registry[cls.key] = cls  # type: ignore
 
 
 def reactor(

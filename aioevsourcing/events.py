@@ -177,7 +177,7 @@ class MessageCodec(Generic[QueueItem], Protocol):
         pass
 
 
-class Passthrough(MessageCodec):
+class PassthroughCodec(MessageCodec):
     """A passthrough codec, for cases when the queue supports python objects."""
 
     @staticmethod
@@ -212,7 +212,7 @@ class EventBus(collections.abc.AsyncIterator):
     def __init__(
         self,
         registry: EventRegistry,
-        codec: Union[Type[MessageCodec], MessageCodec] = Passthrough,
+        codec: Union[Type[MessageCodec], MessageCodec] = PassthroughCodec,
         queue: Optional[asyncio.Queue] = None,
         context: Optional[Dict] = None,
     ) -> None:
@@ -220,7 +220,7 @@ class EventBus(collections.abc.AsyncIterator):
         self._registry = registry
         self._codec = codec
         self._subscriptions: Dict[str, Set[Callable]] = {}
-        self._context = context
+        self._context = {} if context is None else context
         self._listen_task: Optional[Task] = None
 
     async def __anext__(self) -> Message:
