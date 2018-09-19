@@ -52,8 +52,8 @@ class DummyEventB(BaseDummyEvent):
 class DummyAggregate(aggregates.Aggregate):
     event_types = (BaseDummyEvent,)
 
-    global_id: str
     dummy_prop: str
+    global_id: str = None
 
 
 class DummyRepository(aggregates.Repository):
@@ -163,9 +163,7 @@ async def test_execute_transaction_create_aggregate(repository):
 
 
 @pytest.mark.asyncio
-async def test_execute_transaction_load_aggregate(
-    dummy_aggregate, repository
-):
+async def test_execute_transaction_load_aggregate(dummy_aggregate, repository):
     await repository.save(dummy_aggregate)
     repository.save = CoroutineMock()
     async with aggregates.execute_transaction(

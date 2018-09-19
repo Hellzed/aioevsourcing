@@ -2,6 +2,8 @@ import asyncio
 
 from abc import ABC
 from dataclasses import dataclass
+from typing import Optional
+
 from aioevsourcing import aggregates, events
 
 
@@ -13,9 +15,9 @@ class FlightEvent(events.SelfRegisteringEvent, ABC):
 class Aircraft(aggregates.Aggregate):
     event_types = (FlightEvent,)
 
-    global_id: str
     flying: bool
-    airport: str = "<unknown>"
+    global_id: Optional[str] = None
+    airport: Optional[str] = None
 
 
 class AircraftRepository(aggregates.Repository):

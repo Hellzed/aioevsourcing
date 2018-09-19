@@ -51,8 +51,6 @@ class Aggregate(ABC):
     ...     event_types = (events.Event,)
     """
 
-    global_id: str = "anonymous"
-
     def __init_subclass__(cls, *_: Tuple) -> None:
         if not isinstance(cls.event_types, tuple):
             raise TypeError(
@@ -82,6 +80,13 @@ class Aggregate(ABC):
                 ),
                 ResourceWarning,
             )
+
+    @property
+    @abstractmethod
+    def global_id(self) -> Optional[str]:
+        """Tuple of supported Event types
+        """
+        raise NotImplementedError
 
     @property
     @abstractmethod
@@ -265,18 +270,23 @@ class Repository(ABC):
         Args:
             aggregate (aggregates.Aggregate): The ID of the aggregate to save.
         """
+        if aggregate.global_id is None:
+            raise ValueError(
+                "Cannot 'save' aggregate of type '{}' without a 'global_id' "
+                "(str)".format(type(aggregate))
+            )
+        if not aggregate.changes:
+            warnings.warn(
+                "Nothing to save in repository '{}' for aggregate '{}', "
+                "consider using '<repo>.load(aggregate_id)' directly for "
+                "read-only access, and avoid saving the same aggregate "
+                "twice.\nNote: 'execute_transaction()' auto-saves".format(
+                    type(self), aggregate.global_id
+                ),
+                SyntaxWarning,
+            )
+            return
         try:
-            if not aggregate.changes:
-                warnings.warn(
-                    "Nothing to save in repository '{}' for aggregate '{}', "
-                    "consider using '<repo>.load(aggregate_id)' directly for "
-                    "read-only access, and avoid saving the same aggregate "
-                    "twice.\nNote: 'execute_transaction()' auto-saves".format(
-                        type(self), aggregate
-                    ),
-                    SyntaxWarning,
-                )
-                return
             await self._event_store.append_to_stream(
                 aggregate.global_id,
                 aggregate.changes,
@@ -284,24 +294,24 @@ class Repository(ABC):
             )
         except AttributeError:
             logger.error(
-                "Cannot 'save' aggregate of type %s saved events to store %r "
-                "with missing fields!",
+                "Cannot 'save' aggregate '%s' of type '%s' saved events to "
+                "store with missing fields!",
+                aggregate.global_id,
                 type(aggregate),
-                self._event_store,
             )
-            return
+            raise
         if self._event_bus is not None:
             try:
                 for event in aggregate.changes:
                     await self._event_bus.publish(aggregate.global_id, event)
             except AttributeError:
                 logger.error(
-                    "Cannot 'publish' aggregate %s saved events to bus %r. "
+                    "Cannot 'publish' aggregate '%s' saved events to bus '%r'. "
                     "No such method!",
                     aggregate,
                     self._event_bus,
                 )
-                return
+                raise
         if mark_saved:
             aggregate.mark_saved()
 

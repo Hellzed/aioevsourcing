@@ -24,6 +24,7 @@ class DummyAggregate(aggregates.Aggregate):
     event_types = DUMMY_TYPES
 
     dummy_prop: str
+    global_id: str = None
 
 
 @pytest.fixture
@@ -41,6 +42,7 @@ def test_aggregate_init_fail_wrong_event_types(aggregate):
         @dataclass(init=False)
         class DummyAggregate_withWrongTypes(aggregates.Aggregate):
             event_types = "Wrong types"
+            global_id: str = None
 
 
 def test_aggregate_init_empty(aggregate):
@@ -100,6 +102,7 @@ def test_aggregate_apply_fail_with_not_an_event():
     @dataclass(init=False)
     class DummyAggregate_withNotAnEventAllowed(aggregates.Aggregate):
         event_types = (str,)
+        global_id: str = None
 
     broken_aggregate = DummyAggregate_withNotAnEventAllowed()
     with pytest.raises(AttributeError):
