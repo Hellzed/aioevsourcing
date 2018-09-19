@@ -131,9 +131,30 @@ async def test_repository_save_fail_global_id_is_none(
 
 
 @pytest.mark.asyncio
-async def test_repository_save_no_changes(
-    repository, event_store, event_bus
+async def test_repository_save_fail_uninitialised_fields(
+    dummy_aggregate, repository
 ):
+    repository = DummyRepository(event_store)
+    aggregate = DummyAggregate()
+    aggregate.execute(dummy_command_set_id, "some_aggregate_id_123")
+    with pytest.raises(AttributeError):
+        await repository.save(aggregate)
+
+
+@pytest.mark.asyncio
+async def test_repository_publish_fail_no_method_in_bus(
+    repository, event_store
+):
+    repository_with_no_bus = DummyRepository(event_store, event_bus={})
+    aggregate = DummyAggregate()
+    aggregate.execute(dummy_command_set_id, "some_aggregate_id_123")
+    aggregate.execute(dummy_command_a)
+    with pytest.raises(AttributeError):
+        await repository_with_no_bus.save(aggregate)
+
+
+@pytest.mark.asyncio
+async def test_repository_save_no_changes(repository, event_store, event_bus):
     aggregate = DummyAggregate()
     aggregate.execute(dummy_command_set_id, str(uuid.uuid4()))
     aggregate.mark_saved()
@@ -166,6 +187,16 @@ def test_repository_close_transaction(repository):
     assert len(repository._active_transactions) is 1
     repository.close_transaction(transaction_id)
     assert len(repository._active_transactions) is 0
+    repository.close_transaction(transaction_id)
+    assert len(repository._active_transactions) is 0
+
+
+def test_repository_transaction_still_open_warning(repository, caplog):
+    aggregate_id = "<aggregate_id>"
+    transaction_id = repository.open_transaction(aggregate_id)
+    repository.close()
+    assert "active transactions on close" in caplog.text
+    assert transaction_id in caplog.text
 
 
 @pytest.mark.asyncio
@@ -194,3 +225,12 @@ async def test_execute_transaction_load_aggregate(dummy_aggregate, repository):
         aggregate.execute(dummy_command_b)
     assert len(repository._active_transactions) is 0
     repository.save.assert_called_with(aggregate)
+
+
+@pytest.mark.asyncio
+async def test_execute_transaction_not_a_repository():
+    with pytest.raises(AttributeError):
+        async with aggregates.execute_transaction(
+            "not a repository"
+        ) as aggregate:
+            pass

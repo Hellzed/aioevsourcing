@@ -75,9 +75,8 @@ class Aggregate(ABC):
     def __del__(self) -> None:
         if not self._saved:
             warnings.warn(
-                "Aggregate '{}' not saved before going out of scope".format(
-                    repr(self)
-                ),
+                "Aggregate '{}' of type '{}' not saved before going out of "
+                "scope".format(self.global_id, type(self)),
                 ResourceWarning,
             )
 
