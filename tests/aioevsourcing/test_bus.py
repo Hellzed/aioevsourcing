@@ -1,3 +1,4 @@
+# pylint: skip-file
 import asyncio
 from asynctest import MagicMock, CoroutineMock, create_autospec
 
