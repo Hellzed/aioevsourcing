@@ -122,6 +122,26 @@ async def test_repository_save(
 
 
 @pytest.mark.asyncio
+async def test_repository_save_fail_global_id_is_none(
+    repository, event_store, event_bus
+):
+    aggregate = DummyAggregate()
+    with pytest.raises(ValueError):
+        await repository.save(aggregate)
+
+
+@pytest.mark.asyncio
+async def test_repository_save_no_changes(
+    repository, event_store, event_bus
+):
+    aggregate = DummyAggregate()
+    aggregate.execute(dummy_command_set_id, str(uuid.uuid4()))
+    aggregate.mark_saved()
+    with pytest.warns(SyntaxWarning):
+        await repository.save(aggregate)
+
+
+@pytest.mark.asyncio
 async def test_repository_load(dummy_aggregate, repository, event_store):
     changes, aggregate_id = dummy_aggregate.changes, dummy_aggregate.global_id
     await repository.save(dummy_aggregate)
