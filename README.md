@@ -51,7 +51,7 @@ from aioevsourcing import aggregates
 @dataclass(init=False)
 class Aircraft(aggregates.Aggregate):
     # Register accepted event types
-    event_types = (FlightEvent,)
+    event_types = (TakenOff, Landed)
 
     # Add fields
     flying: bool
@@ -70,18 +70,8 @@ Events represent an aggregate's state changes. They are responsible for applying
 
 _Event definition example, also using Python 3.7+ dataclass:_
 ```python
-from abc import ABC
 from dataclasses import dataclass
 from aioevsourcing import events
-
-# Create a base event type as an Abstract Base Class
-class FlightEvent(events.SelfRegisteringEvent, ABC):
-  # Add fields
-  flying: bool
-
-  # Define an apply method shared by all events
-  def apply_to(self, aircraft):
-      aircraft.flying = self.flying
 
 # Add some relevant events:
 @dataclass(frozen=True)
@@ -89,21 +79,11 @@ class TakenOff(FlightEvent):
     # A topic is necessary for event handling
     topic = "aircraft.taken_off"
 
-    # You may override shared fields inside an event, with defaults, for example
+    # Define fields inside an event, with defaults, for example
     flying: bool = True
 
-@dataclass(frozen=True)
-class Landed(FlightEvent):
-    topic = "aircraft.landed"
-
-    # New fields may be defined
-    airport: str
-    flying: bool = False
-
-    # The apply method can also be overriden for an event
     def apply_to(self, aircraft):
         aircraft.flying = self.flying
-        aircraft.airport = self.airport
 ```
 >**Note:** `@dataclass(frozen=True)` is used on events because it helps enforcing the immutability rule. This discourages creating an event, applying it somewhere then mutating and ending up with inconsistent aggregate state.  
 
@@ -118,18 +98,12 @@ _Commands example:_
 # Plain functions are enough in most cases.
 # Commands always take at least one argument: the aggregate.
 def takeoff(aircraft):
-    return TakenOff()
-
-def land(aircraft, airport):
     # Here you may:
     # - Log actions manually
     # - Check if the command applies given aggregate state
     # - Raise errors to handle in your business code
     # - Swap event types
-    # For example:
-    if not aircraft.flying:
-        raise RuntimeError("Aircraft is already on the ground!")
-    return Landed(airport=airport)
+    return TakenOff()
 ```
 
 Commands are run through the aggregate itself, with the `execute` method:
