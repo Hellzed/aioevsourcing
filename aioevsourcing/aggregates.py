@@ -259,9 +259,7 @@ class Repository(ABC):
         event_stream = await self._event_store.load_stream(global_id)
         return self.aggregate(event_stream)
 
-    async def save(
-        self, aggregate: Aggregate, mark_saved: bool = True
-    ) -> None:
+    async def save(self, aggregate: Aggregate) -> None:
         """Save an aggregate and publish changes to the event bus if present.
 
         Also marks the aggregate as saved by default.
@@ -299,20 +297,24 @@ class Repository(ABC):
                 type(aggregate),
             )
             raise
+        await self._publish_changes(aggregate.global_id, aggregate.changes)
+        aggregate.mark_saved()
+
+    async def _publish_changes(
+        self, aggregate_id: str, changes: List[events.Event]
+    ) -> None:
         if self._event_bus is not None:
             try:
-                for event in aggregate.changes:
-                    await self._event_bus.publish(aggregate.global_id, event)
+                for event in changes:
+                    await self._event_bus.publish(aggregate_id, event)
             except AttributeError:
                 logger.error(
                     "Cannot 'publish' aggregate '%s' saved events to bus '%r'. "
                     "No such method!",
-                    aggregate,
+                    aggregate_id,
                     self._event_bus,
                 )
                 raise
-        if mark_saved:
-            aggregate.mark_saved()
 
     def open_transaction(self, aggregate_id: Optional[str]) -> str:
         """Open a transaction on the repository, registered for an aggregate ID.
