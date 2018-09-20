@@ -255,8 +255,9 @@ class Repository(ABC):
         Returns:
             Aggregate
         """
-        # handle the AggregateNotFoundError case
         event_stream = await self._event_store.load_stream(global_id)
+        if not event_stream.events:
+            raise AggregateNotFoundError(global_id, self)
         return self.aggregate(event_stream)
 
     async def save(self, aggregate: Aggregate) -> None:
@@ -365,6 +366,17 @@ class Repository(ABC):
             )
 
 
+class AggregateNotFoundError(RuntimeError):
+    """Raise this when the store returns an empty stream for an aggregate ID."""
+
+    def __init__(self, global_id: str, repository: Repository) -> None:
+        super().__init__(
+            "Aggregate '{}(ID: {})' not found in repository '{}'.".format(
+                global_id, repository.aggregate, repository
+            )
+        )
+
+
 @asynccontextmanager
 async def execute_transaction(
     repository: Repository, global_id: Optional[str] = None
@@ -388,8 +400,7 @@ async def execute_transaction(
         logger.error(
             "Repository '%r' must implement an 'aggregate' attribute and "
             "define 'load' and 'save' methods. A repository type may be "
-            "obtained by subclassing "
-            "'aioeventsourcing.aggregates.Repository'.",
+            "obtained by subclassing 'aioeventsourcing.aggregates.Repository'.",
             repository,
         )
         raise

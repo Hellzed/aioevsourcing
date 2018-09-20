@@ -76,14 +76,12 @@ def dummy_command_b(_):
 @pytest.fixture
 def event_store():
     store = events.DictEventStore()
-    store.append_to_stream = CoroutineMock()
     return store
 
 
 @pytest.fixture
 def event_bus():
     bus = events.EventBus(registry=BaseDummyEvent.registry)
-    bus.publish = CoroutineMock()
     return bus
 
 
@@ -108,6 +106,8 @@ def test_repository_init(repository):
 async def test_repository_save(
     dummy_aggregate, repository, event_store, event_bus
 ):
+    event_bus.publish = CoroutineMock()
+    event_store.append_to_stream = CoroutineMock()
     await repository.save(dummy_aggregate)
     event_store.append_to_stream.assert_called_once_with(
         dummy_aggregate.global_id,
@@ -173,6 +173,12 @@ async def test_repository_load(dummy_aggregate, repository, event_store):
     event_store.load_stream.assert_called_once_with(aggregate_id)
 
 
+@pytest.mark.asyncio
+async def test_repository_load_fail_with_not_found(repository):
+    with pytest.raises(aggregates.AggregateNotFoundError):
+        await repository.load("555")
+
+
 def test_repository_open_transaction(repository):
     aggregate_id = "<aggregate_id>"
     assert len(repository._active_transactions) is 0
@@ -217,6 +223,7 @@ async def test_execute_transaction_create_aggregate(repository):
 @pytest.mark.asyncio
 async def test_execute_transaction_load_aggregate(dummy_aggregate, repository):
     await repository.save(dummy_aggregate)
+    print(repository)
     repository.save = CoroutineMock()
     async with aggregates.execute_transaction(
         repository, dummy_aggregate.global_id
