@@ -1,10 +1,9 @@
 Event sourcing framework for [asyncio](https://docs.python.org/3/library/asyncio.html).
 
-- [ ] Safer initialisation with robust initial event mechanism (to define ID and sane defaults. Obviously dataclass field defaults not backed by an event are not persisted).
-- [ ] Better separation of concerns between the bus and the encoder. Maybe use a default queue if none provided
-- [ ] Maybe freeze the bus conf once it starts listening
-- [ ] Test repository, event bus, event store
 - [ ] Document how to extend the framework (asyncio.Queue compatible queue, message encoder, subclass event store for different backends)
+- [ ] Redis example event store and event bus
+- [ ] First evnt initialisation mechanism if needed
+- [ ] Maybe freeze the bus conf once it starts listening
 
 
 # Table of contents
@@ -284,7 +283,7 @@ await air_traffic_bus.close()
 >**Note:** To be on the safe side, as long as the event bus is registered to a repository, events may be published in it, *even if it is "closed"*.  
 A "closed" bus will only stop dispatching queued events to reactors.  
 This method is called `close` for two reasons:  
-- compatibility with the shutdown convention of registered clients in asyncio/aiohttp applications;
-- it has a cusomisable timeout, during which it offers some relative guarantee that current running reactors are shielded from task cancellation by asyncio, making it suitable for a clean shutdown of the application.
+>- compatibility with the shutdown convention of registered clients in asyncio/aiohttp applications;
+>- it has a cusomisable timeout, during which it offers some relative guarantee that current running reactors are shielded from task cancellation by asyncio, making it suitable for a clean shutdown of the application.
 
 Here is the full code of the [flights example](examples/flight/__main__.py).
