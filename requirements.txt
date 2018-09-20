@@ -7,6 +7,7 @@ black==18.6b4
 click==6.7
 coverage==4.5.1
 decorator==4.3.0
+execnet==1.5.0
 flake8==3.5.0
 isort==4.3.4
 lazy-object-proxy==1.3.1
@@ -20,7 +21,9 @@ pyflakes==1.6.0
 pylint==2.1.1
 pytest==3.7.4
 pytest-asyncio==0.9.0
+pytest-cache==1.0
 pytest-cov==2.6.0
+pytest-mccabe==0.1
 six==1.11.0
 toml==0.9.4
 typed-ast==1.1.0
