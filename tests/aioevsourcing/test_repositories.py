@@ -87,7 +87,7 @@ def event_bus():
 
 @pytest.fixture
 def repository(event_store, event_bus):
-    return DummyRepository(event_store, event_bus=event_bus)
+    return DummyRepository(event_store, bus=event_bus)
 
 
 @pytest.fixture
@@ -145,7 +145,7 @@ async def test_repository_save_fail_uninitialised_fields(
 async def test_repository_publish_fail_no_method_in_bus(
     repository, event_store
 ):
-    repository_with_no_bus = DummyRepository(event_store, event_bus={})
+    repository_with_no_bus = DummyRepository(event_store, bus={})
     aggregate = DummyAggregate()
     aggregate.execute(dummy_command_set_id, "some_aggregate_id_123")
     aggregate.execute(dummy_command_a)

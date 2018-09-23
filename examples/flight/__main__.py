@@ -76,13 +76,13 @@ async def think_reactor(aggregate_id, event, context):
 
 
 async def main(_aircrafts):
-    async with aggregates.execute_transaction(aircrafts) as aircraft:
+    async with aggregates.execute_transaction(_aircrafts) as aircraft:
         aircraft.execute(schedule, "DAILY2018")
         aircraft.execute(takeoff)
     print("Aircraft status:", aircraft)
     await asyncio.sleep(2)
     async with aggregates.execute_transaction(
-        aircrafts, "DAILY2018"
+        _aircrafts, "DAILY2018"
     ) as aircraft:
         aircraft.execute(land, "Paris CDG")
     print("Aircraft status:", aircraft)
@@ -92,7 +92,7 @@ if __name__ == "__main__":
     air_traffic_bus = events.EventBus(registry=FlightEvent.registry)
     air_traffic_bus.subscribe(think_reactor, TakenOff.topic)
     aircrafts = AircraftRepository(
-        events.DictEventStore(), event_bus=air_traffic_bus
+        events.DictEventStore(), bus=air_traffic_bus
     )
     air_traffic_bus.listen()
     loop = asyncio.get_event_loop()

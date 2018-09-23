@@ -232,11 +232,11 @@ class Repository(ABC):
 
     def __init__(
         self,
-        event_store: events.EventStore,
-        event_bus: Optional[events.EventBus] = None,
+        store: events.EventStore,
+        bus: Optional[events.EventBus] = None,
     ) -> None:
-        self._event_store = event_store
-        self._event_bus = event_bus
+        self._event_store = store
+        self._event_bus = bus
         self._active_transactions: Dict[str, str] = {}
 
     @property
