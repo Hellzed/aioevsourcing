@@ -233,7 +233,7 @@ _Back to the repository initialisation, in the following example an event bus is
 air_traffic_bus = events.EventBus(registry=FlightEvent.registry)
 aircrafts = AircraftRepository(
     events.DictEventStore(),
-    event_bus=air_traffic_bus
+    bus=air_traffic_bus
 )
 ```
 >**Note:** Any compatible event registry can be used.
