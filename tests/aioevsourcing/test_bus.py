@@ -96,11 +96,11 @@ async def test_bus_iterate():
 
 
 @pytest.mark.asyncio
-async def test_bus_react(dummy_bus):
+async def test_bus__react(dummy_bus):
     mock_reactor = create_autospec(dummy_reactor)
     aggregate_id, dummy_event, context = "anonymous", DummyBusEvent(), {}
     dummy_bus.subscribe(mock_reactor, "dummy")
-    await dummy_bus.react(
+    await dummy_bus._react(
         events.Message(aggregate_id=aggregate_id, event=dummy_event)
     )
     mock_reactor.assert_called_once_with(aggregate_id, dummy_event, context)
@@ -110,7 +110,7 @@ async def test_bus_react(dummy_bus):
 async def test_bus__event_listener(caplog):
     queue = asyncio.Queue()
     bus = events.EventBus(registry=dummy_bus_event_registry, queue=queue)
-    bus.react = CoroutineMock()
+    bus._react = CoroutineMock()
 
     async def fake_task():
         pass
@@ -120,7 +120,7 @@ async def test_bus__event_listener(caplog):
     await asyncio.sleep(0)
     await queue.put("item")
     await asyncio.sleep(0)
-    bus.react.assert_called_once_with("item")
+    bus._react.assert_called_once_with("item")
 
 
 @pytest.mark.asyncio
@@ -141,7 +141,7 @@ async def test_bus__event_listener_cancel_and_shield_react(
         await asyncio.sleep(side_effect_duration)
         logging.info(message)
 
-    bus.react = mockreact
+    bus._react = mockreact
     bus._listen_task = asyncio.create_task(fake_task())
     listen_task = asyncio.create_task(bus._event_listener())
     await asyncio.sleep(0)

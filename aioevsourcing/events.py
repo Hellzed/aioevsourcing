@@ -280,7 +280,7 @@ class EventBus(collections.abc.AsyncIterator):
         data = self._codec.encode(message)
         await self._queue.put(data)
 
-    async def react(self, message: Message) -> None:
+    async def _react(self, message: Message) -> None:
         """Run reactors with arguments (aggregate ID, event, context)
 
         Args:
@@ -306,7 +306,7 @@ class EventBus(collections.abc.AsyncIterator):
             async for message in self:
                 logger.debug("Bus message: %r", message)
                 # Shield reactors execution from listening task cancellation
-                await asyncio.shield(self.react(message))
+                await asyncio.shield(self._react(message))
         except asyncio.CancelledError:
             logger.info(
                 "Stop listening. %s messages remaining.",
