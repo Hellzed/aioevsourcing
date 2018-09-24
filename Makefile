@@ -116,4 +116,4 @@ set-version:
 # Set version with the short hash commit
 prepare-sonar:
 	cp sonar-project.properties.default sonar-project.properties
-echo "sonar.projectVersion=$(VERSION)" >> sonar-project.properties
+	echo "sonar.projectVersion=$(VERSION)" >> sonar-project.properties
