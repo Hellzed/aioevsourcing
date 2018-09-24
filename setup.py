@@ -2,6 +2,8 @@ from setuptools import setup
 
 import aioevsourcing
 
+_VERSION = aioevsourcing.__version__
+
 
 def readme():
     with open("README.md") as f:
@@ -10,7 +12,7 @@ def readme():
 
 setup(
     name="aioevsourcing",
-    version=aioevsourcing.__version__,
+    version=_VERSION,
     description="Event sourcing framework for AsyncIO",
     long_description=readme(),
     classifiers=[
