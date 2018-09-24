@@ -31,5 +31,18 @@ setup(
     install_requires=["typing_extensions"],
     zip_safe=False,
     setup_requires=["pytest-runner"],
-    tests_require=["pytest", "pytest-asyncio", "pytest-cov", "pytest-mccabe"],
+    tests_require=["pytest", "pytest-asyncio", "pytest-cov"],
+    extras_require={
+        "testing": [
+            "asynctest==0.12.2",
+            "black==18.6b4",
+            "mypy==0.630",
+            "pytest==3.7.4",
+            "pytest-asyncio==0.9.0",
+            "pytest-cov==2.6.0",
+            "pytest-runner==4.2",
+            "pylint==2.1.1",
+            "xenon==0.5.4",
+        ]
+    },
 )

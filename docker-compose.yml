@@ -1,0 +1,88 @@
+version: '2'
+services:
+  format:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        target: .[testing]
+    command: black -l 79 --py36 aioevsourcing setup.py examples
+    network_mode: bridge
+    environment:
+      - PYTHONPATH=/usr/src/lib/
+    volumes:
+      - .:/usr/src/lib
+
+  check-format:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        target: .[testing]
+    command: black -l 79 --py36 --check aioevsourcing setup.py
+    network_mode: bridge
+    environment:
+      - PYTHONPATH=/usr/src/lib/
+
+  style:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        target: .[testing]
+    command: >
+      bash -c "mypy aioevsourcing
+      && pylint aioevsourcing --rcfile=.pylintrc"
+    environment:
+      - "PYTHONPATH=/usr/src/lib/"
+    network_mode: bridge
+
+  complexity:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        target: .[testing]
+    command: xenon --max-absolute A --max-modules A --max-average A aioevsourcing
+    environment:
+      - PYTHONPATH=/usr/src/lib/
+    network_mode: bridge
+
+  test-unit:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        target: .[testing]
+    command: py.test -s tests --junitxml=reports/report_unit_tests.xml --cov aioevsourcing --cov-config .coveragerc --cov-report term --cov-report xml:reports/coverage.xml
+    environment:
+      - "PYTHONPATH=/usr/src/lib/"
+    volumes:
+      - ./reports:/usr/src/lib/reports
+    network_mode: bridge
+
+  build-package:
+    build: .
+    command: python setup.py sdist
+    environment:
+      - "PYTHONPATH=/usr/src/lib/"
+    volumes:
+      - ./:/usr/src/lib
+    network_mode: bridge
+
+  build-clean:
+    build: .
+    command: rm *egg* dist/ -rfv
+    environment:
+      - "PYTHONPATH=/usr/src/lib/"
+    volumes:
+      - ./:/usr/src/lib
+    network_mode: bridge
+
+  devpi:
+    image: quay.io/dailymotionadmin/devpi-server:latest
+    volumes:
+      - ./:/usr/src/lib
+    environment:
+      - PYTHONPATH=/usr/src/lib/
+    network_mode: bridge

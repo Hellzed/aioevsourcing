@@ -132,7 +132,7 @@ class SelfRegisteringEvent(Event, ABC):
                     )
                 )
             else:
-                cls.registry[cls.topic] = cls  # type: ignore
+                cls.registry[cls.topic] = cls
 
 
 @dataclass

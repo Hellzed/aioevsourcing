@@ -231,9 +231,7 @@ class Repository(ABC):
     """
 
     def __init__(
-        self,
-        store: events.EventStore,
-        bus: Optional[events.EventBus] = None,
+        self, store: events.EventStore, bus: Optional[events.EventBus] = None
     ) -> None:
         self._event_store = store
         self._event_bus = bus
