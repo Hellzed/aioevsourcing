@@ -67,3 +67,53 @@ test-unit:
 
 .PHONY: test
 test: test-unit
+
+.PHONY: build-clean
+build-clean:
+	$(COMPOSE) build build-clean
+	$(COMPOSE) run build-clean
+
+.PHONY: build
+build: build-clean
+	$(COMPOSE) build build-package
+	$(COMPOSE) run build-package
+
+.PHONY: publish
+publish:
+	$(COMPOSE) pull
+	$(COMPOSE) run --entrypoint $(PUBLISH_CMD) devpi
+
+.PHONY: down
+down:
+	$(COMPOSE) down --rmi local --volume
+
+.PHONY: exists
+exists:
+	$(COMPOSE) run --entrypoint $(EXISTS_CMD) devpi
+
+.PHONY: tag
+tag:
+	git tag $(PKG_VERSION)
+	git push origin $(PKG_VERSION)
+
+.PHONY: get-version
+get-version:
+	bash -c "cat setup.py |grep \"_VERSION =\" |egrep -o \"([0-9]+\\.[0-9]+\\.[0-9]+)\""
+
+
+.PHONY: get-sandbox-version
+get-sandbox-version:
+	git fetch --tags
+	git describe --tags
+
+
+.PHONY: set-version
+set-version:
+	bash -c "sed -i \"s@_VERSION[ ]*=[ ]*[\\\"\'][0-9]\+\\.[0-9]\+\\.[0-9]\+[\\\"\'].*@_VERSION='$(PKG_VERSION)'@\" setup.py"
+
+
+# Build Sonar properties file (sonar-project.properties)
+# Set version with the short hash commit
+prepare-sonar:
+	cp sonar-project.properties.default sonar-project.properties
+	echo "sonar.projectVersion=$(VERSION)" >> sonar-project.properties

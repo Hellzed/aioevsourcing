@@ -2,7 +2,7 @@ from setuptools import setup
 
 import aioevsourcing
 
-_VERSION = aioevsourcing.__version__
+_VERSION = "0.0.1"
 
 
 def readme():
