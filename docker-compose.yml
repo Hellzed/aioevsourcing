@@ -82,7 +82,7 @@ services:
   devpi:
     image: quay.io/dailymotionadmin/devpi-server:latest
     volumes:
-      - ./:/usr/src/lib
+      - ./:/usr/src/app
     environment:
-      - PYTHONPATH=/usr/src/lib/
+      - PYTHONPATH=/usr/src/app/
     network_mode: bridge
